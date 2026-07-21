@@ -164,13 +164,14 @@
   }
   .search-bar select.input-classic{ width:150px; }
 
-  table.data-grid{ border-collapse:collapse; width:100%; font-size:12.5px; }
-  table.data-grid th{
-    background: linear-gradient(180deg,#f6f4ea 0%, #ddd9c8 100%);
-    border:1px solid var(--grid-line); padding:7px 8px; text-align:left;
-    font-weight:bold; color:#333;
-  }
-  table.data-grid td{ border:1px solid var(--grid-line); padding:6px 8px; }
+  table.data-grid{ border-collapse:collapse; width:100%; font-size:11.5px; }
+table.data-grid th{
+  background: linear-gradient(180deg,#f6f4ea 0%, #ddd9c8 100%);
+  border:1px solid var(--grid-line); padding:5px 6px; text-align:left;
+  font-weight:bold; color:#333;
+  position:sticky; top:0; z-index:2;
+}
+table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   table.data-grid tbody tr:nth-child(even){ background: var(--grid-alt); }
   table.data-grid tbody tr.selectable{ cursor:pointer; }
   table.data-grid tbody tr.selectable:hover{ background:#e7f0fb; }
