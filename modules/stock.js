@@ -46,7 +46,8 @@ function renderFiltered() {
   const estadoFiltro = document.getElementById('stock-filter-estado').value;
 
   const filtrados = stockData.filter((item) => {
-    const coincideTexto = item.id.toLowerCase().includes(term) || item.descripcion.toLowerCase().includes(term);
+    const campos = [item.id, item.descripcion, item.empresa, item.cliente, item.ancho, item.largo, item.espesor];
+    const coincideTexto = campos.some((campo) => String(campo || '').toLowerCase().includes(term));
     const coincideEstado = !estadoFiltro || item.estado === estadoFiltro;
     return coincideTexto && coincideEstado;
   });
@@ -54,7 +55,7 @@ function renderFiltered() {
   const tbody = document.getElementById('stock-tbody');
   tbody.innerHTML = filtrados.length
     ? filtrados.map(rowHtml).join('')
-    : `<tr><td colspan="6">No se encontraron artículos.</td></tr>`;
+    : `<tr><td colspan="11">No se encontraron artículos.</td></tr>`;
 
   updateMetrics();
 }
@@ -77,6 +78,11 @@ function rowHtml(item) {
     <tr class="selectable" data-id="${item.id}" data-ubicacion="${item.ubicacion}">
       <td>${item.id}</td>
       <td>${item.descripcion}</td>
+      <td>${item.ancho}</td>
+      <td>${item.largo}</td>
+      <td>${item.espesor}</td>
+      <td>${item.empresa}</td>
+      <td>${item.cliente}</td>
       <td>${item.ubicacion}</td>
       <td class="qty-cell">${item.disponible}</td>
       <td><span class="badge ${badgeClass}">${item.estado}</span></td>
