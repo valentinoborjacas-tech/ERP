@@ -269,8 +269,15 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   .hamburger-btn{ display:none; padding:6px 10px; }
   .btn-text-short{ display:none; }
 
-  .table-scroll{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  .table-scroll table{ min-width:560px; }
+  .table-scroll{
+  overflow-x:auto;
+  overflow-y:auto;
+  max-height:420px;
+  -webkit-overflow-scrolling:touch;
+  border:1px solid var(--grid-line);
+  border-radius:2px;
+}
+.table-scroll table{ min-width:560px; }
 
   .sidebar-overlay{
     display:none;
