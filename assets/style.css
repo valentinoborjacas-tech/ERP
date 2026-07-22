@@ -270,13 +270,16 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   .btn-text-short{ display:none; }
 
   .table-scroll{
-  overflow-x:auto;
   overflow-y:auto;
+  overflow-x:hidden;
   max-height:420px;
   -webkit-overflow-scrolling:touch;
-  touch-action:pan-x pan-y;
   border:1px solid var(--grid-line);
   border-radius:2px;
+}
+.table-scroll-x{
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
 }
 .table-scroll table{ min-width:900px; }
 
