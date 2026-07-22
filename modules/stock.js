@@ -20,6 +20,8 @@ window.initStockModule = function () {
   document.getElementById('quick-panel-confirm').addEventListener('click', confirmMovimiento);
   document.getElementById('location-panel-close').addEventListener('click', closeLocationPanel);
   document.getElementById('location-panel-confirm').addEventListener('click', confirmLocation);
+  document.getElementById('btn-escanear').addEventListener('click', openScanner);
+  document.getElementById('scanner-panel-close').addEventListener('click', closeScanner);
   
 };
 
@@ -242,4 +244,40 @@ function confirmLocation() {
 function setStatus(msg) {
   const el = document.getElementById('status-message');
   if (el) el.textContent = msg;
+}
+let html5QrCode = null;
+let scannerRunning = false;
+
+function openScanner() {
+  document.getElementById('scanner-panel').classList.add('show');
+
+  if (!html5QrCode) {
+    html5QrCode = new Html5Qrcode('scanner-reader');
+  }
+
+  const config = { fps: 10, qrbox: { width: 250, height: 120 } };
+
+  html5QrCode.start(
+    { facingMode: 'environment' }, // cámara trasera en celular
+    config,
+    (decodedText) => {
+      document.getElementById('stock-search-input').value = decodedText;
+      renderFiltered();
+      closeScanner();
+      setStatus('Código escaneado: ' + decodedText);
+    },
+    () => { /* ignoramos los frames donde no detecta nada, es normal */ }
+  ).then(() => {
+    scannerRunning = true;
+  }).catch((err) => {
+    setStatus('No se pudo abrir la cámara: ' + err);
+    document.getElementById('scanner-panel').classList.remove('show');
+  });
+}
+
+function closeScanner() {
+  if (html5QrCode && scannerRunning) {
+    html5QrCode.stop().then(() => { scannerRunning = false; }).catch(() => {});
+  }
+  document.getElementById('scanner-panel').classList.remove('show');
 }
