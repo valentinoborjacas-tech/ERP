@@ -363,3 +363,48 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   @media (max-width: 380px){
     .header-btn{ padding:6px 8px; }
   }
+/* En celular, la tabla se convierte en tarjetas apiladas (sin scroll horizontal) */
+@media (max-width: 767px){
+  .table-scroll, .table-scroll-x{
+    overflow:visible;
+    max-height:none;
+    border:none;
+  }
+  .table-scroll table{ min-width:0; }
+
+  table.data-grid thead{ display:none; }
+  table.data-grid, table.data-grid tbody, table.data-grid tr, table.data-grid td{
+    display:block;
+    width:100%;
+  }
+  table.data-grid tr{
+    border:1px solid var(--grid-line);
+    border-radius:4px;
+    margin-bottom:10px;
+    padding:8px 10px;
+    background:var(--panel-bg);
+  }
+  table.data-grid tr.row-selected{ background:#cfe0f5 !important; }
+  table.data-grid td{
+    border:none;
+    padding:4px 0;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+  }
+  table.data-grid td::before{
+    content: attr(data-label);
+    font-weight:bold;
+    color:#555;
+    font-size:11px;
+    text-transform:uppercase;
+    flex-shrink:0;
+  }
+  table.data-grid td[data-label="ID"]{
+    font-size:14px; font-weight:bold; border-bottom:1px solid var(--grid-line);
+    padding-bottom:6px; margin-bottom:4px;
+  }
+  table.data-grid td[data-label="ID"]::before{ display:none; }
+  table.data-grid td[data-label="Acciones"]{ justify-content:flex-end; }
+}
