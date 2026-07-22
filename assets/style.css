@@ -274,10 +274,19 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   overflow-y:auto;
   max-height:420px;
   -webkit-overflow-scrolling:touch;
+  touch-action:pan-x pan-y;
   border:1px solid var(--grid-line);
   border-radius:2px;
 }
-.table-scroll table{ min-width:560px; }
+.table-scroll table{ min-width:900px; }
+.mobile-scroll-hint{ display:none; }
+
+@media (max-width: 767px){
+  .mobile-scroll-hint{
+    display:block; font-size:11px; color:#888;
+    margin-bottom:6px; text-align:center;
+  }
+}
 
   .sidebar-overlay{
     display:none;
