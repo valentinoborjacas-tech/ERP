@@ -18,7 +18,6 @@
     --sidebar-border:#b7b3a5;
   }
   *{ box-sizing:border-box; }
-  html, body{ overscroll-behavior:none; }
   body{
     font-family: Tahoma, "Segoe UI", Arial, sans-serif;
     font-size: 13px;
