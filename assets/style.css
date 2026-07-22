@@ -280,7 +280,13 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
 }
 .table-scroll table{ min-width:900px; }
 
-
+.mobile-scroll-hint{ display:none; }
+@media (max-width: 767px){
+    .mobile-scroll-hint{
+        display:block; font-size:11px; color:#888;
+        margin-bottom:6px; text-align:center;
+    }
+}
   .sidebar-overlay{
     display:none;
     position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:40;
