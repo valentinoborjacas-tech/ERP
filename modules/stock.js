@@ -79,17 +79,17 @@ function rowHtml(item) {
 
   return `
     <tr class="selectable" data-id="${item.id}" data-ubicacion="${item.ubicacion}">
-      <td>${item.id}</td>
-      <td>${item.descripcion}</td>
-      <td>${item.ancho}</td>
-      <td>${item.largo}</td>
-      <td>${item.espesor}</td>
-      <td>${item.empresa}</td>
-      <td>${item.cliente}</td>
-      <td>${item.ubicacion}</td>
-      <td class="qty-cell">${item.disponible}</td>
-      <td><span class="badge ${badgeClass}">${item.estado}</span></td>
-      <td>${accionesHtml}</td>
+      <td data-label="ID">${item.id}</td>
+      <td data-label="Descripción">${item.descripcion}</td>
+      <td data-label="Ancho">${item.ancho}</td>
+      <td data-label="Largo">${item.largo}</td>
+      <td data-label="Espesor">${item.espesor}</td>
+      <td data-label="Empresa">${item.empresa}</td>
+      <td data-label="Cliente">${item.cliente}</td>
+      <td data-label="Ubicación">${item.ubicacion}</td>
+      <td class="qty-cell" data-label="Disponible">${item.disponible}</td>
+      <td data-label="Estado"><span class="badge ${badgeClass}">${item.estado}</span></td>
+      <td data-label="Acciones">${accionesHtml}</td>
     </tr>`;
 }
 
