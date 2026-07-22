@@ -18,6 +18,9 @@ window.initStockModule = function () {
   document.getElementById('stock-tbody').addEventListener('click', handleTableClick);
   document.getElementById('quick-panel-close').addEventListener('click', closeQuickPanel);
   document.getElementById('quick-panel-confirm').addEventListener('click', confirmMovimiento);
+  document.getElementById('location-panel-close').addEventListener('click', closeLocationPanel);
+  document.getElementById('location-panel-confirm').addEventListener('click', confirmLocation);
+  
 };
 
 // ====== Traer datos desde el Apps Script ======
@@ -68,7 +71,7 @@ function rowHtml(item) {
     : 'badge-danger';
 
   const accionesHtml = sinUbicar
-    ? `<span class="field-help" style="margin:0;">Asigna una ubicación primero</span>`
+    ? `<button class="btn-classic btn-icon-sm" style="width:auto; padding:0 8px;" data-action="ubicar" title="Asignar ubicación">📍 Ubicar</button>`
     : `<div class="row-actions">
          <button class="btn-classic btn-icon-sm btn-ok" data-action="Entrada" title="Ingreso">↑</button>
          <button class="btn-classic btn-icon-sm btn-danger" data-action="Salida" title="Venta">↓</button>
@@ -110,9 +113,14 @@ function handleTableClick(e) {
   row.classList.add('row-selected');
 
   const actionBtn = e.target.closest('[data-action]');
-  if (actionBtn) {
+  if (!actionBtn) return;
+
+  if (actionBtn.dataset.action === 'ubicar') {
     pendingItem = { id: row.dataset.id, ubicacion: row.dataset.ubicacion, row };
-    pendingAction = actionBtn.dataset.action; // 'Entrada' | 'Salida'
+    openLocationPanel();
+  } else {
+    pendingItem = { id: row.dataset.id, ubicacion: row.dataset.ubicacion, row };
+    pendingAction = actionBtn.dataset.action;
     openQuickPanel();
   }
 }
@@ -184,7 +192,53 @@ function confirmMovimiento() {
       confirmBtn.disabled = false;
     });
 }
+function openLocationPanel() {
+  document.getElementById('location-panel-item').textContent = `${pendingItem.id}`;
+  document.getElementById('location-panel').classList.add('show');
+}
 
+function closeLocationPanel() {
+  document.getElementById('location-panel').classList.remove('show');
+  pendingItem = null;
+}
+
+function confirmLocation() {
+  if (!pendingItem) return;
+  const fila = document.getElementById('loc-fila').value;
+  const modulo = document.getElementById('loc-modulo').value;
+  const lado = document.getElementById('loc-lado').value;
+  const nivel = document.getElementById('loc-nivel').value;
+  const stockInicial = parseInt(document.getElementById('loc-stock-inicial').value, 10) || 0;
+  const confirmBtn = document.getElementById('location-panel-confirm');
+
+  confirmBtn.textContent = 'Guardando…';
+  confirmBtn.disabled = true;
+
+  fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'asignar_ubicacion',
+      id_articulo: pendingItem.id,
+      fila: fila, modulo: modulo, lado: lado, nivel: nivel,
+      stock_inicial: stockInicial
+    })
+  })
+    .then((r) => r.json())
+    .then((resultado) => {
+      if (resultado.ok) {
+        setStatus('Ubicación asignada: ' + resultado.id_ubicacion);
+        fetchStock(); // recarga la tabla completa para reflejar el cambio
+      } else {
+        setStatus('Error: ' + (resultado.error || 'no se pudo asignar'));
+      }
+      closeLocationPanel();
+    })
+    .catch((err) => setStatus('Error de conexión: ' + err.message))
+    .finally(() => {
+      confirmBtn.textContent = '✔ Confirmar';
+      confirmBtn.disabled = false;
+    });
+}
 function setStatus(msg) {
   const el = document.getElementById('status-message');
   if (el) el.textContent = msg;
