@@ -254,14 +254,7 @@ function confirmLocation() {
     localStorage.setItem('ultimaUbicacion', JSON.stringify({ fila, modulo, lado, nivel }));
   const idUbicacionNueva = `${fila}-${modulo}-${lado}-${nivel}`;
   const ocupante = stockData.find((i) => i.ubicacion === idUbicacionNueva && i.id !== pendingItem.id);
-  if (ocupante) {
-    const confirmar = confirm(
-      `⚠️ La ubicación ${idUbicacionNueva} ya tiene asignado a "${ocupante.id} — ${ocupante.descripcion}".\n\n` +
-      `Si continúas, ese producto quedará marcado como "Sin ubicar" y esta posición pasará a "${pendingItem.id}".\n\n` +
-      `¿Deseas continuar de todas formas?`
-    );
-    if (!confirmar) return;
-  }
+
     
   confirmBtn.textContent = 'Guardando…';
   confirmBtn.disabled = true;
