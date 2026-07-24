@@ -409,3 +409,16 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   table.data-grid td[data-label="ID"]::before{ display:none; }
   table.data-grid td[data-label="Acciones"]{ justify-content:flex-end; }
 }
+.adv-filters{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap:8px;
+  margin-bottom:14px;
+  padding:10px;
+  background: var(--win-face);
+  border:1px solid var(--border-mid);
+  border-radius:4px;
+}
+.adv-filter-field .field-label{
+  font-size:11px; display:block; margin-bottom:2px; font-weight:bold; color:#555;
+}
