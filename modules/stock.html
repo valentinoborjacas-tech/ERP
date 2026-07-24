@@ -17,6 +17,39 @@
   </select>
   <button class="btn-classic btn-primary" id="btn-buscar-stock">Buscar</button>
 </div>
+<div class="adv-filters">
+  <div class="adv-filter-field">
+    <label class="field-label">Cliente</label>
+    <input type="text" id="filter-cliente" class="input-classic" placeholder="Nombre del cliente" />
+  </div>
+  <div class="adv-filter-field">
+    <label class="field-label">Medida (Litraje)</label>
+    <input type="text" id="filter-medida" class="input-classic" placeholder="Ej. 140" />
+  </div>
+  <div class="adv-filter-field">
+    <label class="field-label">Ubicación</label>
+    <input type="text" id="filter-ubicacion" class="input-classic" placeholder="Ej. F1-M2-A-N2" />
+  </div>
+  <div class="adv-filter-field">
+    <label class="field-label">Color</label>
+    <input type="text" id="filter-color" class="input-classic" placeholder="Ej. Negro" />
+  </div>
+  <div class="adv-filter-field">
+    <label class="field-label">Ancho</label>
+    <input type="text" id="filter-ancho" class="input-classic" placeholder="Ej. 33" />
+  </div>
+  <div class="adv-filter-field">
+    <label class="field-label">Largo</label>
+    <input type="text" id="filter-largo" class="input-classic" placeholder="Ej. 41" />
+  </div>
+  <div class="adv-filter-field">
+    <label class="field-label">Espesor</label>
+    <input type="text" id="filter-espesor" class="input-classic" placeholder="Ej. 0.9" />
+  </div>
+  <div class="adv-filter-field" style="justify-content:flex-end; display:flex; align-items:flex-end;">
+    <button class="btn-classic" id="btn-limpiar-filtros" style="width:100%;">✕ Limpiar filtros</button>
+  </div>
+</div>
 <div class="quick-panel" id="scanner-panel">
   <div class="quick-panel-header">
     <span class="quick-panel-title">Escanear código de barras</span>
@@ -31,7 +64,7 @@
   <div class="table-scroll-x">
   <table class="data-grid" id="stock-table">
         <thead>
-          <tr><th>ID</th><th>Descripción</th><th>Ancho</th><th>Largo</th><th>Espesor</th><th>Empresa</th><th>Cliente</th><th>Ubicación</th><th>Disponible</th><th>Estado</th><th style="width:70px;">Acciones</th></tr>
+         <tr><th>ID</th><th>Descripción</th><th>Color</th><th>Ancho</th><th>Largo</th><th>Espesor</th><th>Empresa</th><th>Cliente</th><th>Ubicación</th><th>Disponible</th><th>Estado</th><th style="width:70px;">Acciones</th></tr>
         </thead>
         <tbody id="stock-tbody">
           <tr><td colspan="6">Cargando…</td></tr>
