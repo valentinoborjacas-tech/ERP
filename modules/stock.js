@@ -22,6 +22,16 @@ window.initStockModule = function () {
   document.getElementById('location-panel-confirm').addEventListener('click', confirmLocation);
   document.getElementById('btn-escanear').addEventListener('click', openScanner);
   document.getElementById('scanner-panel-close').addEventListener('click', closeScanner);
+    ['filter-cliente','filter-medida','filter-ubicacion','filter-color','filter-ancho','filter-largo','filter-espesor']
+  .forEach((id) => document.getElementById(id).addEventListener('keyup', renderFiltered));
+
+document.getElementById('btn-limpiar-filtros').addEventListener('click', () => {
+  document.getElementById('stock-search-input').value = '';
+  document.getElementById('stock-filter-estado').value = '';
+  ['filter-cliente','filter-medida','filter-ubicacion','filter-color','filter-ancho','filter-largo','filter-espesor']
+    .forEach((id) => document.getElementById(id).value = '');
+  renderFiltered();
+});
   
 };
 
@@ -49,18 +59,35 @@ function fetchStock() {
 function renderFiltered() {
   const term = (document.getElementById('stock-search-input').value || '').toLowerCase();
   const estadoFiltro = document.getElementById('stock-filter-estado').value;
+  const clienteFiltro = (document.getElementById('filter-cliente').value || '').toLowerCase();
+  const medidaFiltro = (document.getElementById('filter-medida').value || '').toLowerCase();
+  const ubicacionFiltro = (document.getElementById('filter-ubicacion').value || '').toLowerCase();
+  const colorFiltro = (document.getElementById('filter-color').value || '').toLowerCase();
+  const anchoFiltro = (document.getElementById('filter-ancho').value || '').toLowerCase();
+  const largoFiltro = (document.getElementById('filter-largo').value || '').toLowerCase();
+  const espesorFiltro = (document.getElementById('filter-espesor').value || '').toLowerCase();
 
   const filtrados = stockData.filter((item) => {
-    const campos = [item.id, item.descripcion, item.empresa, item.cliente, item.ancho, item.largo, item.espesor];
-    const coincideTexto = campos.some((campo) => String(campo || '').toLowerCase().includes(term));
-    const coincideEstado = !estadoFiltro || item.estado === estadoFiltro;
-    return coincideTexto && coincideEstado;
+    const campos = [item.id, item.descripcion, item.empresa, item.cliente];
+    const coincideTexto = !term || campos.some((c) => String(c || '').toLowerCase().includes(term));
+
+    const coincide = (valor, filtro) => !filtro || String(valor || '').toLowerCase().includes(filtro);
+
+    return coincideTexto
+      && (!estadoFiltro || item.estado === estadoFiltro)
+      && coincide(item.cliente, clienteFiltro)
+      && coincide(item.litraje, medidaFiltro)
+      && coincide(item.ubicacion, ubicacionFiltro)
+      && coincide(item.color, colorFiltro)
+      && coincide(item.ancho, anchoFiltro)
+      && coincide(item.largo, largoFiltro)
+      && coincide(item.espesor, espesorFiltro);
   });
 
   const tbody = document.getElementById('stock-tbody');
   tbody.innerHTML = filtrados.length
     ? filtrados.map(rowHtml).join('')
-    : `<tr><td colspan="11">No se encontraron artículos.</td></tr>`;
+    : `<tr><td colspan="12">No se encontraron artículos.</td></tr>`;
 
   updateMetrics();
 }
