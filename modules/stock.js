@@ -83,6 +83,7 @@ function rowHtml(item) {
     <tr class="selectable" data-id="${item.id}" data-ubicacion="${item.ubicacion}">
       <td data-label="ID">${item.id}</td>
       <td data-label="Descripción">${item.descripcion}</td>
+      <td data-label="Color">${item.color}</td>
       <td data-label="Ancho">${item.ancho}</td>
       <td data-label="Largo">${item.largo}</td>
       <td data-label="Espesor">${item.espesor}</td>
