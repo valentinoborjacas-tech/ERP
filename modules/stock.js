@@ -224,6 +224,16 @@ function confirmMovimiento() {
 }
 function openLocationPanel() {
   document.getElementById('location-panel-item').textContent = `${pendingItem.id}`;
+
+  // Recupera la última ubicación usada (si existe) y la deja preseleccionada
+  const ultima = JSON.parse(localStorage.getItem('ultimaUbicacion') || 'null');
+  if (ultima) {
+    document.getElementById('loc-fila').value = ultima.fila;
+    document.getElementById('loc-modulo').value = ultima.modulo;
+    document.getElementById('loc-lado').value = ultima.lado;
+    document.getElementById('loc-nivel').value = ultima.nivel;
+  }
+
   document.getElementById('location-panel').classList.add('show');
 }
 
@@ -240,7 +250,9 @@ function confirmLocation() {
   const nivel = document.getElementById('loc-nivel').value;
   const stockInicial = parseInt(document.getElementById('loc-stock-inicial').value, 10) || 0;
   const confirmBtn = document.getElementById('location-panel-confirm');
-
+    
+    localStorage.setItem('ultimaUbicacion', JSON.stringify({ fila, modulo, lado, nivel }));
+    
   confirmBtn.textContent = 'Guardando…';
   confirmBtn.disabled = true;
 
