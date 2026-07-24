@@ -371,6 +371,7 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
     border:none;
   }
   .table-scroll table{ min-width:0; }
+.table-scroll, .table-scroll-x{ touch-action:auto; overscroll-behavior:auto; }
 
   table.data-grid thead{ display:none; }
   table.data-grid, table.data-grid tbody, table.data-grid tr, table.data-grid td{
