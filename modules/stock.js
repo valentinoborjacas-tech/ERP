@@ -41,7 +41,7 @@ function fetchStock() {
   const tbody = document.getElementById('stock-tbody');
   tbody.innerHTML = `<tr><td colspan="6">Cargando…</td></tr>`;
 
-  fetch(`${API_URL}?action=stock`)
+  fetch(`${API_URL}?action=stock&_=${Date.now()}`, { cache: 'no-store' })
     .then((r) => r.json())
     .then((data) => {
       if (data.error) throw new Error(data.error);
