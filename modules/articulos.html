@@ -1,0 +1,76 @@
+<div class="module-title">Artículos / Catálogo</div>
+<div class="module-subtitle">Consulta el catálogo completo, revisa el historial de cada producto y agrega artículos nuevos.</div>
+
+<div class="search-bar">
+  <div class="search-input-wrap">
+    <span>🔍</span>
+    <input type="text" id="art-search-input" placeholder="Buscar por ID o descripción..." />
+  </div>
+  <button class="btn-classic btn-primary" id="btn-nuevo-articulo">+ Nuevo Artículo</button>
+</div>
+
+<!-- Panel para crear un artículo nuevo -->
+<div class="quick-panel" id="new-article-panel">
+  <div class="quick-panel-header">
+    <span class="quick-panel-title">Nuevo artículo</span>
+    <span class="quick-panel-close" id="new-article-close">✕ Cerrar</span>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <div><label class="field-label">ID <span class="required-mark">*</span></label><input class="input-classic" id="na-id" /></div>
+    <div class="md:col-span-2"><label class="field-label">Descripción <span class="required-mark">*</span></label><input class="input-classic" id="na-descripcion" /></div>
+
+    <div><label class="field-label">Litraje</label><input class="input-classic" id="na-litraje" /></div>
+    <div><label class="field-label">Color</label><input class="input-classic" id="na-color" /></div>
+    <div><label class="field-label">Presentación</label><input class="input-classic" id="na-presentacion" /></div>
+
+    <div><label class="field-label">Ancho</label><input class="input-classic" id="na-ancho" /></div>
+    <div><label class="field-label">Largo</label><input class="input-classic" id="na-largo" /></div>
+    <div><label class="field-label">Espesor</label><input class="input-classic" id="na-espesor" /></div>
+
+    <div><label class="field-label">Stock mínimo</label><input type="number" class="input-classic" id="na-stock-min" value="0" /></div>
+    <div><label class="field-label">Stock máximo</label><input type="number" class="input-classic" id="na-stock-max" value="0" /></div>
+    <div>
+      <label class="field-label">Estado</label>
+      <select class="input-classic" id="na-estado">
+        <option>Activo</option>
+        <option>Descontinuado</option>
+        <option>En revisión</option>
+      </select>
+    </div>
+
+    <div><label class="field-label">Empresa</label><input class="input-classic" id="na-empresa" /></div>
+    <div><label class="field-label">Cliente</label><input class="input-classic" id="na-cliente" /></div>
+  </div>
+  <div class="flex justify-end gap-2 mt-3">
+    <button class="btn-classic btn-primary" id="new-article-confirm">✔ Guardar artículo</button>
+  </div>
+</div>
+
+<!-- Panel de historial de movimientos de un producto -->
+<div class="quick-panel" id="movements-panel">
+  <div class="quick-panel-header">
+    <span class="quick-panel-title">Movimientos de <span id="movements-panel-item">—</span></span>
+    <span class="quick-panel-close" id="movements-panel-close">✕ Cerrar</span>
+  </div>
+  <div class="table-scroll" style="max-height:260px;">
+    <table class="data-grid">
+      <thead>
+        <tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Ubicación</th><th>Motivo</th><th>Usuario</th></tr>
+      </thead>
+      <tbody id="movements-tbody">
+        <tr><td colspan="6">Cargando…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="table-scroll">
+  <table class="data-grid" id="articulos-table">
+    <thead>
+      <tr><th>ID</th><th>Descripción</th><th>Color</th><th>Litraje</th><th>Stock mín.</th><th>Stock máx.</th><th>Estado</th><th style="width:110px;">Acciones</th></tr>
+    </thead>
+    <tbody id="articulos-tbody">
+      <tr><td colspan="8">Cargando…</td></tr>
+    </tbody>
+  </table>
+</div>
