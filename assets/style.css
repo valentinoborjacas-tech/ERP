@@ -290,6 +290,10 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
 
   .mobile-scroll-hint{ display:none; }
   @media (max-width: 767px){
+      .input-classic,
+.search-input-wrap input{
+  font-size:16px !important;
+}
     .mobile-scroll-hint{
         display:block; font-size:11px; color:#888;
         margin-bottom:6px; text-align:center;
