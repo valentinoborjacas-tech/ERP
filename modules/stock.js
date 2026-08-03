@@ -293,6 +293,7 @@ let scannerRunning = false;
 
 function openScanner() {
   document.getElementById('scanner-panel').classList.add('show');
+  document.getElementById('scanner-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   if (!html5QrCode) {
     html5QrCode = new Html5Qrcode('scanner-reader', {
