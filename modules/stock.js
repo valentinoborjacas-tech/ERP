@@ -295,13 +295,41 @@ function openScanner() {
   document.getElementById('scanner-panel').classList.add('show');
 
   if (!html5QrCode) {
-    html5QrCode = new Html5Qrcode('scanner-reader');
+    html5QrCode = new Html5Qrcode('scanner-reader', {
+      // Limita los formatos a los típicos de códigos de barras de productos
+      // (menos formatos a probar = detección más rápida)
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.ITF
+      ],
+      // Usa el lector nativo del navegador cuando esté disponible (mucho más
+      // rápido y preciso que el decodificador JS genérico)
+      useBarCodeDetectorIfSupported: true
+    });
   }
 
-  const config = { fps: 10, qrbox: { width: 250, height: 120 } };
+  const config = {
+    fps: 20,
+    // Rectángulo ancho y bajo, como la forma real de un código de barras
+    // (en vez de un cuadrado, que es mejor para QR)
+    qrbox: { width: 280, height: 110 },
+    aspectRatio: 1.777,
+    videoConstraints: {
+      facingMode: 'environment',
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      // Pide enfoque continuo si el celular lo soporta (más nitidez en movimiento)
+      advanced: [{ focusMode: 'continuous' }]
+    }
+  };
 
   html5QrCode.start(
-    { facingMode: 'environment' }, // cámara trasera en celular
+    { facingMode: 'environment' },
     config,
     (decodedText) => {
       document.getElementById('stock-search-input').value = decodedText;
