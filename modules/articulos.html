@@ -20,7 +20,13 @@
     <div class="md:col-span-2"><label class="field-label">Descripción <span class="required-mark">*</span></label><input class="input-classic" id="na-descripcion" /></div>
 
     <div><label class="field-label">Litraje</label><input class="input-classic" id="na-litraje" /></div>
-    <div><label class="field-label">Color</label><input class="input-classic" id="na-color" /></div>
+    <div><label class="field-label">Color</label><input class="input-classic" id="na-color" />
+    </div><label class="field-label">C/F</label><select class="input-classic" id="na-cf">
+    <option value="">—</option>
+    <option value="Con fuelle">Con fuelle</option>
+    <option value="Sin fuelle">Sin fuelle</option>
+  </select>
+</div>
     <div><label class="field-label">Presentación</label><input class="input-classic" id="na-presentacion" /></div>
 
     <div><label class="field-label">Ancho</label><input class="input-classic" id="na-ancho" /></div>
@@ -67,7 +73,7 @@
 <div class="table-scroll">
   <table class="data-grid" id="articulos-table">
     <thead>
-      <tr><th>ID</th><th>Descripción</th><th>Color</th><th>Litraje</th><th>Stock mín.</th><th>Stock máx.</th><th>Estado</th><th style="width:110px;">Acciones</th></tr>
+      <tr><th>ID</th><th>Descripción</th><th>Color</th><th>C/F</th><th>Stock mín.</th><th>Stock máx.</th><th>Estado</th><th style="width:110px;">Acciones</th></tr>
     </thead>
     <tbody id="articulos-tbody">
       <tr><td colspan="8">Cargando…</td></tr>
