@@ -332,6 +332,7 @@ function openScanner() {
     { facingMode: 'environment' },
     config,
     (decodedText) => {
+        reproducirBeep();
       document.getElementById('stock-search-input').value = decodedText;
       renderFiltered();
       closeScanner();
@@ -344,6 +345,27 @@ function openScanner() {
     setStatus('No se pudo abrir la cámara: ' + err);
     document.getElementById('scanner-panel').classList.remove('show');
   });
+}
+function reproducirBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscilador = ctx.createOscillator();
+    const volumen = ctx.createGain();
+
+    oscilador.connect(volumen);
+    volumen.connect(ctx.destination);
+
+    oscilador.type = 'sine';
+    oscilador.frequency.value = 1000; // tono agudo, tipo beep de scanner
+    volumen.gain.setValueAtTime(0.3, ctx.currentTime);
+    volumen.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+
+    oscilador.start();
+    oscilador.stop(ctx.currentTime + 0.15); // dura 150ms, cortito
+  } catch (err) {
+    // Si el navegador bloquea el audio (por no haber interacción previa), no rompe nada
+    console.warn('No se pudo reproducir el beep:', err);
+  }
 }
 
 function closeScanner() {
