@@ -48,6 +48,7 @@ function articuloRowHtml(a) {
       <td data-label="ID">${a.ID}</td>
       <td data-label="Descripción">${a.DESCRIPCION || ''}</td>
       <td data-label="Color">${a.COLOR || ''}</td>
+      <td data-label="C/F">${a['C/F'] || ''}</td>
       <td data-label="Litraje">${a.LITRAJE || ''}</td>
       <td data-label="Stock mín.">${a.STOCK_MINIMO || 0}</td>
       <td data-label="Stock máx.">${a.STOCK_MAXIMO || 0}</td>
@@ -97,6 +98,7 @@ function crearArticuloNuevo() {
     DESCRIPCION: document.getElementById('na-descripcion').value.trim(),
     LITRAJE: document.getElementById('na-litraje').value,
     COLOR: document.getElementById('na-color').value,
+    'C/F': document.getElementById('na-cf').value,
     ANCHO: document.getElementById('na-ancho').value,
     LARGO: document.getElementById('na-largo').value,
     ESPESOR: document.getElementById('na-espesor').value,
@@ -126,7 +128,7 @@ function crearArticuloNuevo() {
       if (resultado.ok) {
         document.getElementById('new-article-panel').classList.remove('show');
         // Limpia el formulario
-        ['na-id','na-descripcion','na-litraje','na-color','na-presentacion','na-ancho','na-largo','na-espesor','na-empresa','na-cliente']
+        ['na-id','na-descripcion','na-litraje','na-color','na-cf','na-presentacion','na-ancho','na-largo','na-espesor','na-empresa','na-cliente']
           .forEach((id) => document.getElementById(id).value = '');
         fetchArticulos(); // recarga la lista con el nuevo producto ya incluido
       } else {
