@@ -6,8 +6,9 @@ const moduleNames = {
   stock: 'Stock',
   articulos: 'Artículos / Catálogo',
   ubicaciones: 'Ubicaciones',
-  historial: 'Historial'
-  ordenes : 'Órdenes de Despacho
+  historial: 'Historial',
+  tickets: 'Tickets de Fabricación',
+  ordenes: 'Órdenes de Despacho'
 };
 
 // Módulos que ya tienen su archivo modules/<nombre>.html + .js construidos.
