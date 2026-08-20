@@ -426,3 +426,9 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
 .adv-filter-field .field-label{
   font-size:11px; display:block; margin-bottom:2px; font-weight:bold; color:#555;
 }
+
+@media print {
+  body *{ visibility:hidden; }
+  #guia-print, #guia-print *{ visibility:visible; }
+  #guia-print{ position:absolute; top:0; left:0; width:100%; }
+}
