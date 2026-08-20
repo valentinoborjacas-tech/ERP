@@ -1,0 +1,107 @@
+<div class="module-title">Órdenes de Despacho</div>
+<div class="module-subtitle">Registra lo que te pidieron, verifica el stock disponible y genera la guía de salida.</div>
+
+<div class="search-bar">
+  <div class="search-input-wrap">
+    <span>🔍</span>
+    <input type="text" id="ord-search-input" placeholder="Buscar por número o solicitante..." />
+  </div>
+  <select class="input-classic" id="ord-filter-estado" style="width:170px;">
+    <option value="">Todos los estados</option>
+    <option value="Pendiente">Pendiente</option>
+    <option value="Despachada parcial">Despachada parcial</option>
+    <option value="Despachada">Despachada</option>
+  </select>
+  <button class="btn-classic btn-primary" id="btn-nueva-orden">+ Nueva Orden</button>
+</div>
+
+<!-- Panel: crear nueva orden -->
+<div class="quick-panel" id="new-order-panel">
+  <div class="quick-panel-header">
+    <span class="quick-panel-title">Nueva orden</span>
+    <span class="quick-panel-close" id="new-order-close">✕ Cerrar</span>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+    <div><label class="field-label">Solicitante <span class="required-mark">*</span></label><input class="input-classic" id="no-solicitante" placeholder="Nombre de quien pide" /></div>
+    <div><label class="field-label">Observaciones</label><input class="input-classic" id="no-observaciones" /></div>
+  </div>
+
+  <div class="groupbox">
+    <span class="groupbox-label">Agregar producto</span>
+    <div class="flex gap-2 items-end flex-wrap">
+      <div style="flex:1; min-width:200px; position:relative;">
+        <label class="field-label">Buscar producto</label>
+        <input class="input-classic" id="no-buscar-producto" placeholder="ID o descripción..." autocomplete="off" />
+        <div id="no-resultados-busqueda"></div>
+      </div>
+      <div style="width:100px;">
+        <label class="field-label">Cantidad</label>
+        <input type="number" class="input-classic" id="no-cantidad" value="1" min="1" />
+      </div>
+      <button class="btn-classic" id="no-agregar-linea">+ Agregar</button>
+    </div>
+  </div>
+
+  <table class="data-grid" style="margin-top:10px;">
+    <thead><tr><th>ID</th><th>Descripción</th><th>Cantidad</th><th style="width:40px;"></th></tr></thead>
+    <tbody id="no-lineas-tbody">
+      <tr><td colspan="4" style="text-align:center; color:#888;">Sin productos agregados todavía</td></tr>
+    </tbody>
+  </table>
+
+  <div class="flex justify-end gap-2 mt-3">
+    <button class="btn-classic btn-primary" id="new-order-confirm">✔ Crear orden</button>
+  </div>
+</div>
+
+<!-- Panel: preparar y despachar -->
+<div class="quick-panel" id="dispatch-panel">
+  <div class="quick-panel-header">
+    <span class="quick-panel-title">Preparar despacho — <span id="dispatch-panel-numero">—</span></span>
+    <span class="quick-panel-close" id="dispatch-panel-close">✕ Cerrar</span>
+  </div>
+  <div class="help-banner">
+    <span>💡</span>
+    <span>Ajusta la cantidad si no alcanza el stock, y elige de qué ubicación sale cada producto.</span>
+  </div>
+  <div class="table-scroll">
+    <table class="data-grid" id="dispatch-table">
+      <thead><tr><th>ID</th><th>Descripción</th><th>Solicitado</th><th>Disponible</th><th>Ubicación</th><th>A despachar</th></tr></thead>
+      <tbody id="dispatch-tbody"></tbody>
+    </table>
+  </div>
+  <div class="flex justify-end gap-2 mt-3">
+    <button class="btn-classic btn-primary" id="dispatch-confirm">✔ Confirmar despacho</button>
+  </div>
+</div>
+
+<!-- Panel: guía generada (imprimible) -->
+<div class="quick-panel" id="guia-panel">
+  <div class="quick-panel-header">
+    <span class="quick-panel-title">Guía de salida generada</span>
+    <span class="quick-panel-close" id="guia-panel-close">✕ Cerrar</span>
+  </div>
+  <div id="guia-print">
+    <div style="text-align:center; margin-bottom:14px;">
+      <div style="font-size:16px; font-weight:bold;">GUÍA DE SALIDA</div>
+      <div id="guia-numero" style="font-size:13px;"></div>
+      <div id="guia-fecha" style="font-size:11px; color:#666;"></div>
+      <div id="guia-solicitante" style="font-size:12px; margin-top:4px;"></div>
+    </div>
+    <table class="data-grid">
+      <thead><tr><th>ID</th><th>Descripción</th><th>Cantidad</th><th>Ubicación</th></tr></thead>
+      <tbody id="guia-tbody"></tbody>
+    </table>
+  </div>
+  <div class="flex justify-end gap-2 mt-3">
+    <button class="btn-classic btn-primary" id="guia-imprimir">🖨️ Imprimir guía</button>
+  </div>
+</div>
+
+<div class="table-scroll">
+  <table class="data-grid" id="ordenes-table">
+    <thead><tr><th>N° Orden</th><th>Fecha</th><th>Solicitante</th><th>Estado</th><th style="width:120px;">Acciones</th></tr></thead>
+    <tbody id="ordenes-tbody"><tr><td colspan="5">Cargando…</td></tr></tbody>
+  </table>
+</div>
