@@ -1,0 +1,60 @@
+<div class="module-title">Tickets de Fabricación</div>
+<div class="module-subtitle">Crea y da seguimiento a las órdenes internas de producción asignadas a cada operario.</div>
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+  <div class="metric-card"><div class="metric-label">Total</div><div class="metric-value" id="tk-metric-total">—</div></div>
+  <div class="metric-card"><div class="metric-label">Pendientes</div><div class="metric-value" style="color:var(--warn);" id="tk-metric-pendientes">—</div></div>
+  <div class="metric-card"><div class="metric-label">En proceso</div><div class="metric-value" style="color:var(--accent);" id="tk-metric-proceso">—</div></div>
+  <div class="metric-card"><div class="metric-label">Completados</div><div class="metric-value" style="color:var(--ok);" id="tk-metric-completados">—</div></div>
+</div>
+
+<div class="search-bar">
+  <div class="search-input-wrap">
+    <span>🔍</span>
+    <input type="text" id="tk-search-input" placeholder="Buscar por número, producto o material..." />
+  </div>
+  <select class="input-classic" id="tk-filter-estado" style="width:150px;">
+    <option value="">Todos los estados</option>
+    <option value="PENDIENTE">Pendiente</option>
+    <option value="EN PROCESO">En proceso</option>
+    <option value="PAUSADO">Pausado</option>
+    <option value="COMPLETADO">Completado</option>
+  </select>
+  <input type="text" id="tk-filter-operario" class="input-classic" style="width:150px;" placeholder="Operario" />
+  <button class="btn-classic btn-primary" id="btn-nuevo-ticket">+ Nuevo Ticket</button>
+</div>
+
+<div class="quick-panel" id="new-ticket-panel">
+  <div class="quick-panel-header">
+    <span class="quick-panel-title">Nuevo ticket</span>
+    <span class="quick-panel-close" id="new-ticket-close">✕ Cerrar</span>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <div><label class="field-label">Código de producto</label><input class="input-classic" id="nt-codigo" /></div>
+    <div><label class="field-label">Material</label><input class="input-classic" id="nt-material" /></div>
+    <div><label class="field-label">Cantidad <span class="required-mark">*</span></label><input type="number" class="input-classic" id="nt-cantidad" /></div>
+    <div><label class="field-label">Orden vinculada</label><input class="input-classic" id="nt-orden" /></div>
+    <div><label class="field-label">Operario <span class="required-mark">*</span></label><input class="input-classic" id="nt-operario" /></div>
+    <div><label class="field-label">Fecha límite <span class="required-mark">*</span></label><input type="date" class="input-classic" id="nt-fecha" /></div>
+  </div>
+  <div class="field-help" style="margin-top:6px;">Debes indicar al menos código de producto o material.</div>
+  <div class="flex justify-end gap-2 mt-3">
+    <button class="btn-classic btn-primary" id="new-ticket-confirm">✔ Crear ticket</button>
+  </div>
+</div>
+
+<div class="table-scroll">
+  <table class="data-grid" id="tickets-table">
+    <thead>
+      <tr><th>N° Ticket</th><th>Producto / Material</th><th>Cantidad</th><th>Operario</th><th>Fecha límite</th><th>Urgencia</th><th>Estado</th><th style="width:70px;">Acciones</th></tr>
+    </thead>
+    <tbody id="tickets-tbody">
+      <tr><td colspan="8">Cargando…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="help-banner" style="margin-top:14px;">
+  <span>💡</span>
+  <span>Los operarios cambian el estado de su propio ticket (Pendiente → En proceso → Pausado → Completado) desde su tablet, en <code>operario.html</code>. Desde aquí solo puedes crear tickets y eliminar los que ya estén Completados.</span>
+</div>
