@@ -87,7 +87,6 @@ function mostrarProductosDeUbicacion(codigo) {
       </tr>`;
   }).join('');
 }
-
 // ====== Escáner de código de barras (mismo motor que Stock, mismos ajustes de precisión) ======
 function abrirScannerUbicacion() {
   document.getElementById('ubi-scanner-panel').classList.add('show');
