@@ -13,7 +13,7 @@ const moduleNames = {
 
 // Módulos que ya tienen su archivo modules/<nombre>.html + .js construidos.
 // Cuando termines otro módulo, agrégalo aquí (ej. 'articulos').
-const builtModules = ['stock', 'articulos','tickets', 'ordenes'];
+const builtModules = ['stock', 'articulos','tickets', 'ordenes','ubicaciones'];
 
 document.querySelectorAll('.nav-item').forEach((item) => {
   item.addEventListener('click', () => {
