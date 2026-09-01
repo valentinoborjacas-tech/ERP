@@ -12,7 +12,10 @@ window.initUbicacionesModule = function () {
   document.getElementById('btn-escanear-ubicacion').addEventListener('click', abrirScannerUbicacion);
   document.getElementById('ubi-scanner-close').addEventListener('click', cerrarScannerUbicacion);
   document.getElementById('ubicaciones-tbody').addEventListener('click', handleUbicacionesTablaClick);
-};
+  document.getElementById('ubi-resultado-tbody').addEventListener('click', handleUbiResultadoClick);
+  document.getElementById('ubi-movements-close').addEventListener('click', () => {
+  document.getElementById('ubi-movements-panel').classList.remove('show');
+});
 
 function fetchStockParaUbicaciones() {
   fetch(`${API_URL}?action=stock&_=${Date.now()}`, { cache: 'no-store' })
@@ -159,4 +162,38 @@ function reproducirBeepUbicacion() {
   } catch (err) {
     console.warn('No se pudo reproducir el beep:', err);
   }
+}
+  function handleUbiResultadoClick(e) {
+  const row = e.target.closest('tr[data-id]');
+  if (!row) return;
+  abrirMovimientosUbicacion(row.dataset.id);
+}
+
+function abrirMovimientosUbicacion(id) {
+  const panel = document.getElementById('ubi-movements-panel');
+  document.getElementById('ubi-movements-item').textContent = id;
+  panel.classList.add('show');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  const tbody = document.getElementById('ubi-movements-tbody');
+  tbody.innerHTML = `<tr><td colspan="6">Cargando…</td></tr>`;
+
+  fetch(`${API_URL}?action=movimientos&id=${encodeURIComponent(id)}&_=${Date.now()}`, { cache: 'no-store' })
+    .then((r) => r.json())
+    .then((data) => {
+      tbody.innerHTML = data.length
+        ? data.map((m) => `
+            <tr>
+              <td data-label="Fecha">${new Date(m.fecha).toLocaleString()}</td>
+              <td data-label="Tipo">${m.tipo}</td>
+              <td data-label="Cantidad">${m.cantidad}</td>
+              <td data-label="Ubicación">${m.id_ubicacion}</td>
+              <td data-label="Motivo">${m.motivo}</td>
+              <td data-label="Usuario">${m.usuario}</td>
+            </tr>`).join('')
+        : `<tr><td colspan="6">Este producto todavía no tiene movimientos.</td></tr>`;
+    })
+    .catch((err) => {
+      tbody.innerHTML = `<tr><td colspan="6">Error: ${err.message}</td></tr>`;
+    });
 }
