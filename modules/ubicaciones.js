@@ -16,7 +16,7 @@ window.initUbicacionesModule = function () {
   document.getElementById('ubi-movements-close').addEventListener('click', () => {
   document.getElementById('ubi-movements-panel').classList.remove('show');
 });
-
+  }
 function fetchStockParaUbicaciones() {
   fetch(`${API_URL}?action=stock&_=${Date.now()}`, { cache: 'no-store' })
     .then((r) => r.json())
