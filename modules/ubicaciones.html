@@ -1,0 +1,45 @@
+<div class="module-title">Ubicaciones</div>
+<div class="module-subtitle">Escanea o busca el código de una ubicación del rack para ver qué productos tiene y sus cantidades.</div>
+
+<div class="search-bar">
+  <div class="search-input-wrap">
+    <span>📍</span>
+    <input type="text" id="ubi-search-input" placeholder="ID de ubicación... (ej. F1-M2-A-N2)" />
+  </div>
+  <button class="btn-classic" id="btn-escanear-ubicacion" title="Escanear código de ubicación">📷 Escanear</button>
+  <button class="btn-classic btn-primary" id="btn-buscar-ubicacion">Buscar</button>
+</div>
+
+<div class="quick-panel" id="ubi-scanner-panel">
+  <div class="quick-panel-header">
+    <span class="quick-panel-title">Escanear ubicación</span>
+    <span class="quick-panel-close" id="ubi-scanner-close">✕ Cerrar</span>
+  </div>
+  <div id="ubi-scanner-reader" style="width:100%; max-width:400px; margin:0 auto;"></div>
+  <div class="field-help" style="text-align:center; margin-top:8px;">Apunta la cámara al código de la ubicación.</div>
+</div>
+
+<div class="groupbox" id="ubi-resultado-box" style="display:none; margin-bottom:16px;">
+  <span class="groupbox-label">Contenido de la ubicación</span>
+  <div class="text-center py-1">
+    <span id="ubi-resultado-codigo" class="text-[20px] font-bold tracking-widest" style="color:var(--accent);">—</span>
+  </div>
+  <div class="table-scroll" style="max-height:280px; margin-top:8px;">
+    <table class="data-grid">
+      <thead><tr><th>ID</th><th>Descripción</th><th>Cantidad</th><th>Estado</th></tr></thead>
+      <tbody id="ubi-resultado-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="help-banner">
+  <span>💡</span>
+  <span>También puedes tocar cualquier fila de la lista de abajo para ver su contenido, sin necesidad de escanear.</span>
+</div>
+
+<div class="table-scroll">
+  <table class="data-grid" id="ubicaciones-table">
+    <thead><tr><th>Ubicación</th><th>N° de productos</th><th>Total disponible</th></tr></thead>
+    <tbody id="ubicaciones-tbody"><tr><td colspan="3">Cargando…</td></tr></tbody>
+  </table>
+</div>
