@@ -76,11 +76,11 @@ function mostrarProductosDeUbicacion(codigo) {
   tbody.innerHTML = productos.map((p) => {
     const badgeClass = p.estado === 'Normal' ? 'badge-ok' : p.estado === 'Bajo mínimo' ? 'badge-warn' : 'badge-danger';
     return `
-      <tr>
-        <td>${p.id}</td>
-        <td>${p.descripcion}</td>
-        <td>${p.disponible}</td>
-        <td><span class="badge ${badgeClass}">${p.estado}</span></td>
+      <tr class="selectable" data-id="${p.id}">
+        <td data-label="ID">${p.id}</td>
+        <td data-label="Producto">${p.descripcion}</td>
+        <td data-label="Cantidad">${p.disponible}</td>
+        <td data-label="Estado"><span class="badge ${badgeClass}">${p.estado}</span></td>
       </tr>`;
   }).join('');
 }
