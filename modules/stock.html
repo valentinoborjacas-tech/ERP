@@ -8,16 +8,18 @@
     <input type="text" id="stock-search-input" placeholder="Buscar por ID o descripción... (ej. ART-00458, bolsas 55L)" />
   </div>
   <button class="btn-classic" id="btn-escanear" title="Escanear código de barras">📷 Escanear</button>
-  <select class="input-classic" id="stock-filter-estado" style="width:150px;">
-    <option value="">Todos los almacenes</option>
-    <option value="Almacén 1">Almacén 1</option>
-    <option value="Almacén 2">Almacén 2</option>
-    <option value="">Todos los estados</option>
-    <option value="Normal">Normal</option>
-    <option value="Bajo mínimo">Bajo mínimo</option>  
-    <option value="Sin stock">Sin stock</option>
-    <option value="Sin ubicar">Sin ubicar</option>
-  </select>
+  <select class="input-classic" id="stock-filter-almacen" style="width:150px;">
+  <option value="">Todos los almacenes</option>
+  <option value="Almacén 1">Almacén 1</option>
+  <option value="Almacén 2">Almacén 2</option>
+</select>
+<select class="input-classic" id="stock-filter-estado" style="width:150px;">
+  <option value="">Todos los estados</option>
+  <option value="Normal">Normal</option>
+  <option value="Bajo mínimo">Bajo mínimo</option>
+  <option value="Sin stock">Sin stock</option>
+  <option value="Sin ubicar">Sin ubicar</option>
+</select>
   <button class="btn-classic btn-primary" id="btn-buscar-stock">Buscar</button>
 </div>
 <div class="adv-filters">
