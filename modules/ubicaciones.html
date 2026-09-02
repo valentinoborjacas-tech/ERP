@@ -47,6 +47,48 @@
     </table>
   </div>
 </div>
+<!-- Panel: agregar cantidad a un producto ya en esta ubicación -->
+<div class="quick-panel" id="ubi-qty-panel">
+  <div class="quick-panel-header">
+    <span class="quick-panel-title">Agregar cantidad — <span id="ubi-qty-item">—</span></span>
+    <span class="quick-panel-close" id="ubi-qty-close">✕ Cerrar</span>
+  </div>
+  <div class="flex items-end gap-3 quick-panel-row">
+    <div class="quick-panel-field" style="width:140px;">
+      <label class="field-label">Cantidad a sumar</label>
+      <input type="number" id="ubi-qty-input" class="input-classic" value="10" min="1" />
+    </div>
+    <div class="quick-panel-field" style="width:200px;">
+      <label class="field-label">Motivo</label>
+      <select class="input-classic" id="ubi-qty-motivo">
+        <option>Compra / Reposición</option>
+        <option>Devolución</option>
+        <option>Ajuste de inventario</option>
+      </select>
+    </div>
+    <button class="btn-classic btn-primary quick-panel-field" id="ubi-qty-confirm">✔ Confirmar</button>
+  </div>
+</div>
+
+<!-- Panel: agregar un producto nuevo a esta ubicación -->
+<div class="quick-panel" id="ubi-add-panel">
+  <div class="quick-panel-header">
+    <span class="quick-panel-title">Agregar producto a <span id="ubi-add-ubicacion">—</span></span>
+    <span class="quick-panel-close" id="ubi-add-close">✕ Cerrar</span>
+  </div>
+  <div style="position:relative;">
+    <label class="field-label">Buscar producto</label>
+    <input class="input-classic" id="ubi-add-buscar" placeholder="ID o descripción..." autocomplete="off" />
+    <div id="ubi-add-resultados"></div>
+  </div>
+  <div class="flex items-end gap-3 quick-panel-row" style="margin-top:8px;">
+    <div class="quick-panel-field" style="width:140px;">
+      <label class="field-label">Cantidad inicial</label>
+      <input type="number" id="ubi-add-cantidad" class="input-classic" value="10" min="1" />
+    </div>
+    <button class="btn-classic btn-primary quick-panel-field" id="ubi-add-confirm">✔ Agregar a esta ubicación</button>
+  </div>
+</div>
 <div class="help-banner">
   <span>💡</span>
   <span>También puedes tocar cualquier fila de la lista de abajo para ver su contenido, sin necesidad de escanear.</span>
