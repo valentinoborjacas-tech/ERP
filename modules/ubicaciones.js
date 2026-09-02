@@ -18,19 +18,20 @@ window.initUbicacionesModule = function () {
   document.getElementById('ubi-resultado-tbody').addEventListener('click', handleUbiResultadoClick);
   document.getElementById('ubi-movements-close').addEventListener('click', () => {
   document.getElementById('ubi-movements-panel').classList.remove('show');
-    document.getElementById('ubi-qty-close').addEventListener('click', () => {
-  document.getElementById('ubi-qty-panel').classList.remove('show');
-});
-document.getElementById('ubi-qty-confirm').addEventListener('click', confirmarSumaCantidad);
+  });
 
-document.getElementById('btn-agregar-producto-ubicacion').addEventListener('click', abrirPanelAgregarProducto);
-document.getElementById('ubi-add-close').addEventListener('click', () => {
-  document.getElementById('ubi-add-panel').classList.remove('show');
-});
-document.getElementById('ubi-add-buscar').addEventListener('keyup', buscarProductoParaAgregar);
-document.getElementById('ubi-add-confirm').addEventListener('click', confirmarAgregarProducto);
-});
-  }
+  document.getElementById('ubi-qty-close').addEventListener('click', () => {
+    document.getElementById('ubi-qty-panel').classList.remove('show');
+  });
+  document.getElementById('ubi-qty-confirm').addEventListener('click', confirmarSumaCantidad);
+
+  document.getElementById('btn-agregar-producto-ubicacion').addEventListener('click', abrirPanelAgregarProducto);
+  document.getElementById('ubi-add-close').addEventListener('click', () => {
+    document.getElementById('ubi-add-panel').classList.remove('show');
+  });
+  document.getElementById('ubi-add-buscar').addEventListener('keyup', buscarProductoParaAgregar);
+  document.getElementById('ubi-add-confirm').addEventListener('click', confirmarAgregarProducto);
+};
 function fetchStockParaUbicaciones() {
   fetch(`${API_URL}?action=stock&_=${Date.now()}`, { cache: 'no-store' })
     .then((r) => r.json())
