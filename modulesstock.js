@@ -84,8 +84,8 @@ function renderFiltered() {
       && coincide(item.color, colorFiltro)
       && coincide(item.ancho, anchoFiltro)
       && coincide(item.largo, largoFiltro)
-      && coincide(item.espesor, espesorFiltro);
-      && (!almacenFiltro || item.almacen === almacenFiltro)
+      && coincide(item.espesor, espesorFiltro)
+      && (!almacenFiltro || item.almacen === almacenFiltro);
   });
 
   const tbody = document.getElementById('stock-tbody');
