@@ -22,6 +22,8 @@ window.initStockModule = function () {
   document.getElementById('location-panel-confirm').addEventListener('click', confirmLocation);
   document.getElementById('btn-escanear').addEventListener('click', openScanner);
   document.getElementById('scanner-panel-close').addEventListener('click', closeScanner);
+  document.getElementById('stock-filter-almacen').addEventListener('change', renderFiltered);
+  document.getElementById('loc-almacen').addEventListener('change', toggleCamposAlmacen);
     ['filter-cliente','filter-medida','filter-ubicacion','filter-color','filter-ancho','filter-largo','filter-espesor']
   .forEach((id) => document.getElementById(id).addEventListener('keyup', renderFiltered));
 
@@ -66,6 +68,7 @@ function renderFiltered() {
   const anchoFiltro = (document.getElementById('filter-ancho').value || '').toLowerCase();
   const largoFiltro = (document.getElementById('filter-largo').value || '').toLowerCase();
   const espesorFiltro = (document.getElementById('filter-espesor').value || '').toLowerCase();
+  const almacenFiltro = document.getElementById('stock-filter-almacen').value;
 
   const filtrados = stockData.filter((item) => {
     const campos = [item.id, item.descripcion, item.empresa, item.cliente];
@@ -82,12 +85,13 @@ function renderFiltered() {
       && coincide(item.ancho, anchoFiltro)
       && coincide(item.largo, largoFiltro)
       && coincide(item.espesor, espesorFiltro);
+      && (!almacenFiltro || item.almacen === almacenFiltro)
   });
 
   const tbody = document.getElementById('stock-tbody');
   tbody.innerHTML = filtrados.length
     ? filtrados.map(rowHtml).join('')
-    : `<tr><td colspan="12">No se encontraron artículos.</td></tr>`;
+    : `<tr><td colspan="13">No se encontraron artículos.</td></tr>`;
 
   updateMetrics();
 }
@@ -117,6 +121,7 @@ function rowHtml(item) {
       <td data-label="Espesor">${item.espesor}</td>
       <td data-label="Empresa">${item.empresa}</td>
       <td data-label="Cliente">${item.cliente}</td>
+      <td data-label="Almacén">${item.almacen}</td>
       <td data-label="Ubicación">${item.ubicacion}</td>
       <td class="qty-cell" data-label="Disponible">${item.disponible}</td>
       <td data-label="Estado"><span class="badge ${badgeClass}">${item.estado}</span></td>
@@ -226,16 +231,28 @@ function confirmMovimiento() {
 function openLocationPanel() {
   document.getElementById('location-panel-item').textContent = `${pendingItem.id}`;
 
-  // Recupera la última ubicación usada (si existe) y la deja preseleccionada
   const ultima = JSON.parse(localStorage.getItem('ultimaUbicacion') || 'null');
   if (ultima) {
-    document.getElementById('loc-fila').value = ultima.fila;
-    document.getElementById('loc-modulo').value = ultima.modulo;
-    document.getElementById('loc-lado').value = ultima.lado;
-    document.getElementById('loc-nivel').value = ultima.nivel;
+    document.getElementById('loc-almacen').value = ultima.almacen || 'Almacén 2';
+    if (ultima.almacen === 'Almacén 1') {
+      document.getElementById('loc-mueble').value = ultima.mueble;
+      document.getElementById('loc-nivel-a1').value = ultima.nivel;
+    } else {
+      document.getElementById('loc-fila').value = ultima.fila;
+      document.getElementById('loc-modulo').value = ultima.modulo;
+      document.getElementById('loc-lado').value = ultima.lado;
+      document.getElementById('loc-nivel').value = ultima.nivel;
+    }
   }
+  toggleCamposAlmacen();
 
   document.getElementById('location-panel').classList.add('show');
+}
+
+function toggleCamposAlmacen() {
+  const almacen = document.getElementById('loc-almacen').value;
+  document.getElementById('loc-fields-almacen1').style.display = almacen === 'Almacén 1' ? 'flex' : 'none';
+  document.getElementById('loc-fields-almacen2').style.display = almacen === 'Almacén 2' ? 'flex' : 'none';
 }
 
 function closeLocationPanel() {
@@ -245,27 +262,35 @@ function closeLocationPanel() {
 
 function confirmLocation() {
   if (!pendingItem) return;
-  const fila = document.getElementById('loc-fila').value;
-  const modulo = document.getElementById('loc-modulo').value;
-  const lado = document.getElementById('loc-lado').value;
-  const nivel = document.getElementById('loc-nivel').value;
+
+  const almacen = document.getElementById('loc-almacen').value;
+  let fila = '', modulo = '', lado = '', mueble = '', nivel = '';
+
+  if (almacen === 'Almacén 1') {
+    mueble = document.getElementById('loc-mueble').value;
+    nivel = document.getElementById('loc-nivel-a1').value;
+  } else {
+    fila = document.getElementById('loc-fila').value;
+    modulo = document.getElementById('loc-modulo').value;
+    lado = document.getElementById('loc-lado').value;
+    nivel = document.getElementById('loc-nivel').value;
+  }
+
   const stockInicial = parseInt(document.getElementById('loc-stock-inicial').value, 10) || 0;
   const confirmBtn = document.getElementById('location-panel-confirm');
-    
-    localStorage.setItem('ultimaUbicacion', JSON.stringify({ fila, modulo, lado, nivel }));
-  const idUbicacionNueva = `${fila}-${modulo}-${lado}-${nivel}`;
-  const ocupante = stockData.find((i) => i.ubicacion === idUbicacionNueva && i.id !== pendingItem.id);
 
-    
+  localStorage.setItem('ultimaUbicacion', JSON.stringify({ almacen, fila, modulo, lado, mueble, nivel }));
+
   confirmBtn.textContent = 'Guardando…';
   confirmBtn.disabled = true;
+  setStatus('Guardando ubicación…');
 
   fetch(API_URL, {
     method: 'POST',
     body: JSON.stringify({
       action: 'asignar_ubicacion',
       id_articulo: pendingItem.id,
-      fila: fila, modulo: modulo, lado: lado, nivel: nivel,
+      almacen, fila, modulo, lado, mueble, nivel,
       stock_inicial: stockInicial
     })
   })
@@ -273,7 +298,7 @@ function confirmLocation() {
     .then((resultado) => {
       if (resultado.ok) {
         setStatus('Ubicación asignada: ' + resultado.id_ubicacion);
-        fetchStock(); // recarga la tabla completa para reflejar el cambio
+        fetchStock();
       } else {
         setStatus('Error: ' + (resultado.error || 'no se pudo asignar'));
       }
