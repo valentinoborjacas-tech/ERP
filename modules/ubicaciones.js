@@ -1,6 +1,9 @@
 let ubicacionesStockData = [];
 let ubiHtml5QrCode = null;
 let ubiScannerRunning = false;
+let ubiPendingId = null;
+let ubiCatalogo = [];
+let ubiProductoSeleccionado = null;
 
 window.initUbicacionesModule = function () {
   fetchStockParaUbicaciones();
@@ -15,6 +18,17 @@ window.initUbicacionesModule = function () {
   document.getElementById('ubi-resultado-tbody').addEventListener('click', handleUbiResultadoClick);
   document.getElementById('ubi-movements-close').addEventListener('click', () => {
   document.getElementById('ubi-movements-panel').classList.remove('show');
+    document.getElementById('ubi-qty-close').addEventListener('click', () => {
+  document.getElementById('ubi-qty-panel').classList.remove('show');
+});
+document.getElementById('ubi-qty-confirm').addEventListener('click', confirmarSumaCantidad);
+
+document.getElementById('btn-agregar-producto-ubicacion').addEventListener('click', abrirPanelAgregarProducto);
+document.getElementById('ubi-add-close').addEventListener('click', () => {
+  document.getElementById('ubi-add-panel').classList.remove('show');
+});
+document.getElementById('ubi-add-buscar').addEventListener('keyup', buscarProductoParaAgregar);
+document.getElementById('ubi-add-confirm').addEventListener('click', confirmarAgregarProducto);
 });
   }
 function fetchStockParaUbicaciones() {
@@ -28,7 +42,133 @@ function fetchStockParaUbicaciones() {
       document.getElementById('ubicaciones-tbody').innerHTML = `<tr><td colspan="3">Error: ${err.message}</td></tr>`;
     });
 }
+function abrirPanelCantidad(id) {
+  ubiPendingId = id;
+  document.getElementById('ubi-qty-item').textContent = id;
+  document.getElementById('ubi-qty-panel').classList.add('show');
+  document.getElementById('ubi-qty-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function confirmarSumaCantidad() {
+  if (!ubiPendingId) return;
+  const codigoUbicacion = document.getElementById('ubi-resultado-box').dataset.codigoActual;
+  const cantidad = parseInt(document.getElementById('ubi-qty-input').value, 10) || 0;
+  const motivo = document.getElementById('ubi-qty-motivo').value;
+  const confirmBtn = document.getElementById('ubi-qty-confirm');
 
+  confirmBtn.textContent = 'Guardando…';
+  confirmBtn.disabled = true;
+
+  fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'movimiento',
+      id_articulo: ubiPendingId,
+      id_ubicacion: codigoUbicacion,
+      tipo: 'Entrada',
+      cantidad: cantidad,
+      motivo: motivo,
+      usuario: 'almacenero'
+    })
+  })
+    .then((r) => r.json())
+    .then((resultado) => {
+      if (resultado.ok) {
+        document.getElementById('ubi-qty-panel').classList.remove('show');
+        fetchStockParaUbicaciones();
+        setTimeout(() => mostrarProductosDeUbicacion(codigoUbicacion), 400);
+      } else {
+        alert('Error: ' + resultado.error);
+      }
+    })
+    .catch((err) => alert('Error de conexión: ' + err.message))
+    .finally(() => {
+      confirmBtn.textContent = '✔ Confirmar';
+      confirmBtn.disabled = false;
+    });
+}
+function abrirPanelAgregarProducto() {
+  const codigoUbicacion = document.getElementById('ubi-resultado-box').dataset.codigoActual;
+  if (!codigoUbicacion) return;
+
+  ubiProductoSeleccionado = null;
+  document.getElementById('ubi-add-buscar').value = '';
+  document.getElementById('ubi-add-resultados').innerHTML = '';
+  document.getElementById('ubi-add-panel').classList.add('show');
+  document.getElementById('ubi-add-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  if (!ubiCatalogo.length) {
+    fetch(`${API_URL}?action=articulos&_=${Date.now()}`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => { ubiCatalogo = data; });
+  }
+}
+
+function buscarProductoParaAgregar() {
+  const term = document.getElementById('ubi-add-buscar').value.toLowerCase();
+  const resultadosDiv = document.getElementById('ubi-add-resultados');
+  if (!term) { resultadosDiv.innerHTML = ''; return; }
+
+  const coincidencias = ubiCatalogo.filter((a) =>
+    String(a.ID || '').toLowerCase().includes(term) || String(a.DESCRIPCION || '').toLowerCase().includes(term)
+  ).slice(0, 6);
+
+  resultadosDiv.innerHTML = coincidencias.length
+    ? `<div style="position:absolute; z-index:10; background:#fff; border:1px solid var(--border-mid); width:100%; max-height:160px; overflow-y:auto;">` +
+      coincidencias.map((a) => `<div class="nav-item" style="cursor:pointer;" data-id="${a.ID}" data-desc="${a.DESCRIPCION || ''}">${a.ID} — ${a.DESCRIPCION || ''}</div>`).join('') +
+      `</div>`
+    : '';
+
+  resultadosDiv.querySelectorAll('[data-id]').forEach((el) => {
+    el.addEventListener('click', () => {
+      ubiProductoSeleccionado = el.dataset.id;
+      document.getElementById('ubi-add-buscar').value = `${el.dataset.id} — ${el.dataset.desc}`;
+      resultadosDiv.innerHTML = '';
+    });
+  });
+}
+
+function confirmarAgregarProducto() {
+  if (!ubiProductoSeleccionado) { alert('Busca y selecciona un producto de la lista primero.'); return; }
+  const codigoUbicacion = document.getElementById('ubi-resultado-box').dataset.codigoActual;
+  const cantidad = parseInt(document.getElementById('ubi-add-cantidad').value, 10) || 0;
+  const confirmBtn = document.getElementById('ubi-add-confirm');
+
+  // El código de ubicación ya viene armado (ej. F1-M2-A-N2 o R1-N1);
+  // lo separamos para reutilizar la misma función asignarUbicacion del backend.
+  const partes = codigoUbicacion.split('-');
+  const esAlmacen1 = partes.length === 2; // Mueble-Nivel
+  const payload = esAlmacen1
+    ? { almacen: 'Almacén 1', mueble: partes[0], nivel: partes[1] }
+    : { almacen: 'Almacén 2', fila: partes[0], modulo: partes[1], lado: partes[2], nivel: partes[3] };
+
+  confirmBtn.textContent = 'Guardando…';
+  confirmBtn.disabled = true;
+
+  fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'asignar_ubicacion',
+      id_articulo: ubiProductoSeleccionado,
+      stock_inicial: cantidad,
+      ...payload
+    })
+  })
+    .then((r) => r.json())
+    .then((resultado) => {
+      if (resultado.ok) {
+        document.getElementById('ubi-add-panel').classList.remove('show');
+        fetchStockParaUbicaciones();
+        setTimeout(() => mostrarProductosDeUbicacion(codigoUbicacion), 400);
+      } else {
+        alert('Error: ' + resultado.error);
+      }
+    })
+    .catch((err) => alert('Error de conexión: ' + err.message))
+    .finally(() => {
+      confirmBtn.textContent = '✔ Agregar a esta ubicación';
+      confirmBtn.disabled = false;
+    });
+}
 function renderTablaUbicaciones() {
   const ubicacionesMap = {};
   ubicacionesStockData.forEach((item) => {
@@ -68,11 +208,13 @@ function mostrarProductosDeUbicacion(codigo) {
   const tbody = document.getElementById('ubi-resultado-tbody');
 
   document.getElementById('ubi-resultado-codigo').textContent = codigo;
+  document.getElementById('ubi-add-ubicacion').textContent = codigo;
+  box.dataset.codigoActual = codigo;
   box.style.display = 'block';
   box.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   if (!productos.length) {
-    tbody.innerHTML = `<tr><td colspan="4">No hay productos registrados en esta ubicación.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5">No hay productos registrados en esta ubicación.</td></tr>`;
     return;
   }
 
@@ -84,6 +226,9 @@ function mostrarProductosDeUbicacion(codigo) {
         <td data-label="Producto">${p.descripcion}</td>
         <td data-label="Cantidad">${p.disponible}</td>
         <td data-label="Estado"><span class="badge ${badgeClass}">${p.estado}</span></td>
+        <td data-label="Acciones">
+          <button class="btn-classic btn-icon-sm" style="width:auto; padding:0 8px;" data-action="sumar" data-id="${p.id}" title="Agregar cantidad">+ Cant.</button>
+        </td>
       </tr>`;
   }).join('');
 }
@@ -162,10 +307,14 @@ function reproducirBeepUbicacion() {
     console.warn('No se pudo reproducir el beep:', err);
   }
 }
-  function handleUbiResultadoClick(e) {
+ function handleUbiResultadoClick(e) {
+  const btnSumar = e.target.closest('[data-action="sumar"]');
+  if (btnSumar) {
+    abrirPanelCantidad(btnSumar.dataset.id);
+    return;
+  }
   const row = e.target.closest('tr[data-id]');
-  if (!row) return;
-  abrirMovimientosUbicacion(row.dataset.id);
+  if (row) abrirMovimientosUbicacion(row.dataset.id);
 }
 
 function abrirMovimientosUbicacion(id) {
