@@ -144,11 +144,13 @@ function crearArticuloNuevo() {
       }
     })
     .catch((err) => alert('Error de conexión: ' + err.message))
-    .finally(() => {
+      .finally(() => {
       confirmBtn.textContent = '✔ Guardar artículo';
       confirmBtn.disabled = false;
     });
-  let reportStockData = [];
+}
+
+let reportStockData = [];
 
 function abrirPanelReporte() {
   document.getElementById('report-panel').classList.add('show');
@@ -228,4 +230,4 @@ function generarPdfReporte() {
 
   doc.save(`reporte-stock-${Date.now()}.pdf`);
 }
-}
+
