@@ -23,6 +23,16 @@ document.getElementById('report-panel-close').addEventListener('click', () => {
 document.getElementById('report-select-all').addEventListener('change', toggleSeleccionarTodoReporte);
 document.getElementById('report-tbody').addEventListener('change', actualizarContadorReporte);
 document.getElementById('report-generar-pdf').addEventListener('click', generarPdfReporte);
+  document.getElementById('btn-sugerido-compras').addEventListener('click', abrirPanelCompras);
+document.getElementById('purchase-panel-close').addEventListener('click', () => {
+  document.getElementById('purchase-panel').classList.remove('show');
+});
+document.getElementById('btn-descargar-plantilla').addEventListener('click', descargarPlantillaCompras);
+document.getElementById('purchase-file-input').addEventListener('change', manejarArchivoCompras);
+document.getElementById('purchase-buscar-producto').addEventListener('keyup', buscarProductoParaCompra);
+document.getElementById('purchase-agregar-linea').addEventListener('click', agregarLineaManualCompra);
+document.getElementById('btn-limpiar-lista-compras').addEventListener('click', limpiarListaCompras);
+document.getElementById('purchase-generar-pdf').addEventListener('click', generarPdfCompras);
   
 };
 
@@ -228,5 +238,162 @@ function generarPdfReporte() {
   });
 
   doc.save(`reporte-stock-${Date.now()}.pdf`);
+}
+let purchaseList = [];
+let purchaseStockTotals = {};
+let purchaseProductoSeleccionado = null;
+
+function abrirPanelCompras() {
+  document.getElementById('purchase-panel').classList.add('show');
+  document.getElementById('purchase-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  fetch(`${API_URL}?action=stock&_=${Date.now()}`, { cache: 'no-store' })
+    .then((r) => r.json())
+    .then((data) => {
+      purchaseStockTotals = {};
+      data.forEach((item) => {
+        purchaseStockTotals[item.id] = (purchaseStockTotals[item.id] || 0) + item.disponible;
+      });
+      renderTablaCompras();
+    });
+}
+
+function descargarPlantillaCompras() {
+  const filas = [['ID', 'DESCRIPCION', 'PEDIDO PASADO']];
+  articulosData.forEach((a) => filas.push([a.ID, a.DESCRIPCION || '', '']));
+
+  const ws = XLSX.utils.aoa_to_sheet(filas);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Plantilla');
+  XLSX.writeFile(wb, 'plantilla-sugerido-compras.xlsx');
+}
+
+function manejarArchivoCompras(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    const data = new Uint8Array(evt.target.result);
+    const wb = XLSX.read(data, { type: 'array' });
+    const hoja = wb.Sheets[wb.SheetNames[0]];
+    const filas = XLSX.utils.sheet_to_json(hoja, { defval: '' });
+
+    filas.forEach((fila) => {
+      const id = String(fila.ID || fila.Id || fila.id || '').trim();
+      const descripcion = String(fila.DESCRIPCION || fila.Descripcion || fila.descripcion || '').trim();
+      const pedido = Number(fila['PEDIDO PASADO'] || fila.PEDIDO_PASADO || fila.Pedido || 0) || 0;
+      if (!id) return;
+      agregarOActualizarLineaCompra(id, descripcion, pedido);
+    });
+
+    renderTablaCompras();
+    e.target.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function agregarOActualizarLineaCompra(id, descripcion, pedido) {
+  const existente = purchaseList.find((l) => l.id === id);
+  const desc = descripcion || (articulosData.find((a) => a.ID === id) || {}).DESCRIPCION || '';
+  if (existente) {
+    existente.pedido = pedido;
+    existente.descripcion = desc || existente.descripcion;
+  } else {
+    purchaseList.push({ id, descripcion: desc, pedido });
+  }
+}
+
+function buscarProductoParaCompra() {
+  const term = document.getElementById('purchase-buscar-producto').value.toLowerCase();
+  const resultadosDiv = document.getElementById('purchase-resultados-busqueda');
+  if (!term) { resultadosDiv.innerHTML = ''; return; }
+
+  const coincidencias = articulosData.filter((a) =>
+    String(a.ID || '').toLowerCase().includes(term) || String(a.DESCRIPCION || '').toLowerCase().includes(term)
+  ).slice(0, 6);
+
+  resultadosDiv.innerHTML = coincidencias.length
+    ? `<div style="position:absolute; z-index:10; background:#fff; border:1px solid var(--border-mid); width:100%; max-height:160px; overflow-y:auto;">` +
+      coincidencias.map((a) => `<div class="nav-item" style="cursor:pointer;" data-id="${a.ID}" data-desc="${a.DESCRIPCION || ''}">${a.ID} — ${a.DESCRIPCION || ''}</div>`).join('') +
+      `</div>`
+    : '';
+
+  resultadosDiv.querySelectorAll('[data-id]').forEach((el) => {
+    el.addEventListener('click', () => {
+      purchaseProductoSeleccionado = { id: el.dataset.id, descripcion: el.dataset.desc };
+      document.getElementById('purchase-buscar-producto').value = `${el.dataset.id} — ${el.dataset.desc}`;
+      resultadosDiv.innerHTML = '';
+    });
+  });
+}
+
+function agregarLineaManualCompra() {
+  if (!purchaseProductoSeleccionado) { alert('Busca y selecciona un producto de la lista primero.'); return; }
+  const pedido = parseInt(document.getElementById('purchase-cantidad').value, 10) || 0;
+  agregarOActualizarLineaCompra(purchaseProductoSeleccionado.id, purchaseProductoSeleccionado.descripcion, pedido);
+  renderTablaCompras();
+  purchaseProductoSeleccionado = null;
+  document.getElementById('purchase-buscar-producto').value = '';
+  document.getElementById('purchase-cantidad').value = 0;
+}
+
+function renderTablaCompras() {
+  const tbody = document.getElementById('purchase-tbody');
+  tbody.innerHTML = purchaseList.length
+    ? purchaseList.map((l, i) => {
+        const stockActual = purchaseStockTotals[l.id] || 0;
+        const aComprar = Math.max(0, l.pedido - stockActual);
+        return `
+          <tr>
+            <td data-label="ID">${l.id}</td>
+            <td data-label="Descripción">${l.descripcion}</td>
+            <td data-label="Pedido deseado">${l.pedido}</td>
+            <td data-label="Stock actual">${stockActual}</td>
+            <td data-label="A comprar" style="font-weight:bold; color:${aComprar > 0 ? 'var(--danger)' : 'var(--ok)'};">${aComprar}</td>
+            <td><span style="cursor:pointer; color:var(--danger);" data-quitar-compra="${i}">✕</span></td>
+          </tr>`;
+      }).join('')
+    : `<tr><td colspan="6" style="text-align:center; color:#888;">Sin productos agregados todavía</td></tr>`;
+
+  tbody.querySelectorAll('[data-quitar-compra]').forEach((el) => {
+    el.addEventListener('click', () => {
+      purchaseList.splice(Number(el.dataset.quitarCompra), 1);
+      renderTablaCompras();
+    });
+  });
+}
+
+function limpiarListaCompras() {
+  purchaseList = [];
+  renderTablaCompras();
+}
+
+function generarPdfCompras() {
+  if (!purchaseList.length) { alert('Agrega al menos un producto a la lista.'); return; }
+
+  const filasParaPdf = purchaseList.map((l) => {
+    const stockActual = purchaseStockTotals[l.id] || 0;
+    const aComprar = Math.max(0, l.pedido - stockActual);
+    return [l.id, l.descripcion, l.pedido, stockActual, aComprar];
+  });
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape' });
+
+  doc.setFontSize(14);
+  doc.text('Sugerido de Compras', 14, 15);
+  doc.setFontSize(10);
+  doc.text('Generado: ' + new Date().toLocaleString(), 14, 21);
+
+  doc.autoTable({
+    startY: 26,
+    head: [['ID', 'Descripción', 'Pedido deseado', 'Stock actual', 'A comprar']],
+    body: filasParaPdf,
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [10, 61, 122] }
+  });
+
+  doc.save(`sugerido-compras-${Date.now()}.pdf`);
 }
 
