@@ -16,6 +16,14 @@ window.initArticulosModule = function () {
   document.getElementById('movements-panel-close').addEventListener('click', () => {
     document.getElementById('movements-panel').classList.remove('show');
   });
+  document.getElementById('btn-generar-reporte').addEventListener('click', abrirPanelReporte);
+document.getElementById('report-panel-close').addEventListener('click', () => {
+  document.getElementById('report-panel').classList.remove('show');
+});
+document.getElementById('report-select-all').addEventListener('change', toggleSeleccionarTodoReporte);
+document.getElementById('report-tbody').addEventListener('change', actualizarContadorReporte);
+document.getElementById('report-generar-pdf').addEventListener('click', generarPdfReporte);
+  
 };
 
 function fetchArticulos() {
@@ -140,4 +148,84 @@ function crearArticuloNuevo() {
       confirmBtn.textContent = '✔ Guardar artículo';
       confirmBtn.disabled = false;
     });
+  let reportStockData = [];
+
+function abrirPanelReporte() {
+  document.getElementById('report-panel').classList.add('show');
+  document.getElementById('report-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('report-select-all').checked = false;
+
+  const tbody = document.getElementById('report-tbody');
+  tbody.innerHTML = `<tr><td colspan="7">Cargando…</td></tr>`;
+
+  fetch(`${API_URL}?action=stock&_=${Date.now()}`, { cache: 'no-store' })
+    .then((r) => r.json())
+    .then((data) => {
+      reportStockData = data.filter((item) => item.disponible > 0);
+      renderReporteTabla();
+    })
+    .catch((err) => {
+      tbody.innerHTML = `<tr><td colspan="7">Error: ${err.message}</td></tr>`;
+    });
+}
+
+function renderReporteTabla() {
+  const tbody = document.getElementById('report-tbody');
+  tbody.innerHTML = reportStockData.length
+    ? reportStockData.map((item, i) => `
+        <tr>
+          <td><input type="checkbox" class="report-check" data-index="${i}" /></td>
+          <td data-label="ID">${item.id}</td>
+          <td data-label="Descripción">${item.descripcion}</td>
+          <td data-label="Color">${item.color}</td>
+          <td data-label="Stock">${item.disponible}</td>
+          <td data-label="Ubicación">${item.ubicacion}</td>
+          <td data-label="Almacén">${item.almacen}</td>
+        </tr>`).join('')
+    : `<tr><td colspan="7">No hay productos con stock disponible.</td></tr>`;
+  actualizarContadorReporte();
+}
+
+function toggleSeleccionarTodoReporte(e) {
+  document.querySelectorAll('.report-check').forEach((chk) => chk.checked = e.target.checked);
+  actualizarContadorReporte();
+}
+
+function actualizarContadorReporte() {
+  const total = document.querySelectorAll('.report-check:checked').length;
+  document.getElementById('report-contador').textContent = `${total} seleccionados`;
+}
+
+function generarPdfReporte() {
+  const seleccionados = [];
+  document.querySelectorAll('.report-check:checked').forEach((chk) => {
+    seleccionados.push(reportStockData[Number(chk.dataset.index)]);
+  });
+
+  if (!seleccionados.length) {
+    alert('Selecciona al menos un producto.');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape' });
+
+  doc.setFontSize(14);
+  doc.text('Reporte de Stock Disponible', 14, 15);
+  doc.setFontSize(10);
+  doc.text('Generado: ' + new Date().toLocaleString(), 14, 21);
+
+  doc.autoTable({
+    startY: 26,
+    head: [['ID', 'Descripción', 'Color', 'Ancho', 'Largo', 'Espesor', 'Stock', 'Ubicación', 'Almacén']],
+    body: seleccionados.map((item) => [
+      item.id, item.descripcion, item.color, item.ancho, item.largo, item.espesor,
+      item.disponible, item.ubicacion, item.almacen
+    ]),
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [10, 61, 122] }
+  });
+
+  doc.save(`reporte-stock-${Date.now()}.pdf`);
+}
 }
