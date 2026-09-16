@@ -7,6 +7,7 @@
     <input type="text" id="art-search-input" placeholder="Buscar por ID o descripción..." />
   </div>
   <button class="btn-classic btn-primary" id="btn-nuevo-articulo">+ Nuevo Artículo</button>
+  <button class="btn-classic" id="btn-generar-reporte">📄 Generar Reporte</button>
 </div>
 
 <!-- Panel para crear un artículo nuevo -->
@@ -47,6 +48,27 @@
     <div><label class="field-label">Empresa</label><input class="input-classic" id="na-empresa" /></div>
     <div><label class="field-label">Cliente</label><input class="input-classic" id="na-cliente" /></div>
   </div>
+<div class="quick-panel" id="report-panel">
+  <div class="quick-panel-header">
+    <span class="quick-panel-title">Generar reporte de stock</span>
+    <span class="quick-panel-close" id="report-panel-close">✕ Cerrar</span>
+  </div>
+  <div class="flex items-center justify-between mb-2">
+    <label class="field-label" style="display:flex; align-items:center; gap:6px;">
+      <input type="checkbox" id="report-select-all" /> Seleccionar todo
+    </label>
+    <span class="field-help" id="report-contador">0 seleccionados</span>
+  </div>
+  <div class="table-scroll" style="max-height:320px;">
+    <table class="data-grid">
+      <thead><tr><th style="width:36px;"></th><th>ID</th><th>Descripción</th><th>Color</th><th>Stock</th><th>Ubicación</th><th>Almacén</th></tr></thead>
+      <tbody id="report-tbody"><tr><td colspan="7">Cargando…</td></tr></tbody>
+    </table>
+  </div>
+  <div class="flex justify-end gap-2 mt-3">
+    <button class="btn-classic btn-primary" id="report-generar-pdf">📄 Generar PDF</button>
+  </div>
+</div>
   <div class="flex justify-end gap-2 mt-3">
     <button class="btn-classic btn-primary" id="new-article-confirm">✔ Guardar artículo</button>
   </div>
