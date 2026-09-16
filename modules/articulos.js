@@ -217,14 +217,13 @@ function generarPdfReporte() {
   doc.setFontSize(10);
   doc.text('Generado: ' + new Date().toLocaleString(), 14, 21);
 
-  doc.autoTable({
+ doc.autoTable({
     startY: 26,
-    head: [['ID', 'Descripción', 'Color', 'Ancho', 'Largo', 'Espesor', 'Stock', 'Ubicación', 'Almacén']],
+    head: [['ID', 'Descripción', 'Stock', 'Ubicación', 'Almacén']],
     body: seleccionados.map((item) => [
-      item.id, item.descripcion, item.color, item.ancho, item.largo, item.espesor,
-      item.disponible, item.ubicacion, item.almacen
+      item.id, item.descripcion, item.disponible, item.ubicacion, item.almacen
     ]),
-    styles: { fontSize: 8 },
+    styles: { fontSize: 9 },
     headStyles: { fillColor: [10, 61, 122] }
   });
 
