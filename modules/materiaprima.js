@@ -18,7 +18,16 @@ window.initMateriaprimaModule = function () {
   document.getElementById('mp-bovinas-close').addEventListener('click', () => {
     document.getElementById('mp-bovinas-panel').classList.remove('show');
   });
+
+  document.getElementById('btn-registrar-produccion').addEventListener('click', abrirPanelProduccion);
+  document.getElementById('mp-produccion-close').addEventListener('click', () => {
+    document.getElementById('mp-produccion-panel').classList.remove('show');
+  });
+  document.getElementById('prod-peso-inicio').addEventListener('input', calcularPesoUtilizadoProduccion);
+  document.getElementById('prod-peso-tuco').addEventListener('input', calcularPesoUtilizadoProduccion);
+  document.getElementById('mp-produccion-confirm').addEventListener('click', confirmarRegistrarProduccion);
 };
+
 
 function fetchMpStock() {
   fetch(`${API_URL}?action=materia_prima_stock&_=${Date.now()}`, { cache: 'no-store' })
@@ -145,6 +154,70 @@ function confirmarIngresoBovinas() {
     .catch((err) => alert('Error de conexión: ' + err.message))
     .finally(() => {
       confirmBtn.textContent = '✔ Registrar ingreso';
+      confirmBtn.disabled = false;
+    });
+}
+function abrirPanelProduccion() {
+  ['prod-operario', 'prod-id-manga', 'prod-proveedor', 'prod-litros', 'prod-ancho',
+   'prod-largo', 'prod-espesor', 'prod-millares', 'prod-peso-inicio', 'prod-peso-tuco']
+    .forEach((id) => document.getElementById(id).value = '');
+  document.getElementById('prod-estado-final').value = 'Terminado';
+  document.getElementById('prod-peso-utilizado').textContent = '0.00';
+  document.getElementById('mp-produccion-panel').classList.add('show');
+  document.getElementById('mp-produccion-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function calcularPesoUtilizadoProduccion() {
+  const inicio = Number(document.getElementById('prod-peso-inicio').value) || 0;
+  const tuco = Number(document.getElementById('prod-peso-tuco').value) || 0;
+  const utilizado = Math.max(inicio - tuco, 0);
+  document.getElementById('prod-peso-utilizado').textContent = utilizado.toFixed(2);
+}
+
+function confirmarRegistrarProduccion() {
+  const operario = document.getElementById('prod-operario').value.trim();
+  const idManga = document.getElementById('prod-id-manga').value.trim();
+  const proveedor = document.getElementById('prod-proveedor').value.trim();
+  const pesoInicio = Number(document.getElementById('prod-peso-inicio').value) || 0;
+  const pesoTuco = Number(document.getElementById('prod-peso-tuco').value) || 0;
+
+  if (!operario) { alert('Escribe el nombre del operario.'); return; }
+  if (!idManga) { alert('Ingresa el ID de manga (bovina).'); return; }
+  if (!proveedor) { alert('Ingresa el proveedor.'); return; }
+  if (pesoInicio <= 0) { alert('Ingresa el peso de manga al inicio.'); return; }
+  if (pesoTuco < 0 || pesoTuco > pesoInicio) { alert('El peso del tuco no es válido.'); return; }
+
+  const confirmBtn = document.getElementById('mp-produccion-confirm');
+  confirmBtn.textContent = 'Guardando…';
+  confirmBtn.disabled = true;
+
+  fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'registrar_produccion',
+      operario, id_manga: idManga, proveedor,
+      litros: document.getElementById('prod-litros').value,
+      ancho: document.getElementById('prod-ancho').value,
+      largo: document.getElementById('prod-largo').value,
+      espesor: document.getElementById('prod-espesor').value,
+      millares: document.getElementById('prod-millares').value,
+      peso_manga_inicio: pesoInicio,
+      peso_tuco: pesoTuco,
+      estado_final: document.getElementById('prod-estado-final').value
+    })
+  })
+    .then((r) => r.json())
+    .then((resultado) => {
+      if (resultado.ok) {
+        document.getElementById('mp-produccion-panel').classList.remove('show');
+        fetchMpStock();
+      } else {
+        alert('Error: ' + resultado.error);
+      }
+    })
+    .catch((err) => alert('Error de conexión: ' + err.message))
+    .finally(() => {
+      confirmBtn.textContent = '✔ Registrar producción';
       confirmBtn.disabled = false;
     });
 }
