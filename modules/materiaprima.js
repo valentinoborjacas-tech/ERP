@@ -224,6 +224,7 @@ function confirmarRegistrarProduccion() {
       confirmBtn.textContent = '✔ Registrar producción';
       confirmBtn.disabled = false;
     });
+}
   
   function cargarBovinasDisponibles() {
   const codigo = document.getElementById('prod-codigo-material').value.trim();
@@ -246,7 +247,7 @@ function confirmarRegistrarProduccion() {
     .catch(() => {
       select.innerHTML = '<option value="">Error al buscar bovinas</option>';
     });
-}
+}  
 
 function autocompletarProveedorBovina() {
   const opcion = document.getElementById('prod-bovina-select').selectedOptions[0];
@@ -254,4 +255,4 @@ function autocompletarProveedorBovina() {
     document.getElementById('prod-proveedor').value = opcion.dataset.proveedor;
   }
 }
-}
+
