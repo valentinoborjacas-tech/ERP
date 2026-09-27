@@ -9,11 +9,12 @@ const moduleNames = {
   historial: 'Historial',
   tickets: 'Tickets de Fabricación',
   ordenes: 'Órdenes de Despacho'
+  materiaprima: 'Materia Prima'
 };
 
 // Módulos que ya tienen su archivo modules/<nombre>.html + .js construidos.
 // Cuando termines otro módulo, agrégalo aquí (ej. 'articulos').
-const builtModules = ['stock', 'articulos','tickets', 'ordenes','ubicaciones'];
+const builtModules = ['stock', 'articulos','tickets', 'ordenes','ubicaciones','materiaprima'];
 
 document.querySelectorAll('.nav-item').forEach((item) => {
   item.addEventListener('click', () => {
