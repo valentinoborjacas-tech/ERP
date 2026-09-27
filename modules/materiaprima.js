@@ -25,6 +25,8 @@ window.initMateriaprimaModule = function () {
   });
   document.getElementById('prod-peso-inicio').addEventListener('input', calcularPesoUtilizadoProduccion);
   document.getElementById('prod-peso-tuco').addEventListener('input', calcularPesoUtilizadoProduccion);
+  document.getElementById('prod-codigo-material').addEventListener('keyup', cargarBovinasDisponibles);
+  document.getElementById('prod-bovina-select').addEventListener('change', autocompletarProveedorBovina);
   document.getElementById('mp-produccion-confirm').addEventListener('click', confirmarRegistrarProduccion);
 };
 
@@ -158,14 +160,16 @@ function confirmarIngresoBovinas() {
     });
 }
 function abrirPanelProduccion() {
-  ['prod-operario', 'prod-id-manga', 'prod-proveedor', 'prod-litros', 'prod-ancho',
+  ['prod-operario', 'prod-codigo-material', 'prod-proveedor', 'prod-litros', 'prod-ancho',
    'prod-largo', 'prod-espesor', 'prod-millares', 'prod-peso-inicio', 'prod-peso-tuco']
     .forEach((id) => document.getElementById(id).value = '');
   document.getElementById('prod-estado-final').value = 'Terminado';
   document.getElementById('prod-peso-utilizado').textContent = '0.00';
+  document.getElementById('prod-bovina-select').innerHTML = '<option value="">— Escribe el código del material —</option>';
   document.getElementById('mp-produccion-panel').classList.add('show');
   document.getElementById('mp-produccion-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
 
 function calcularPesoUtilizadoProduccion() {
   const inicio = Number(document.getElementById('prod-peso-inicio').value) || 0;
@@ -176,13 +180,13 @@ function calcularPesoUtilizadoProduccion() {
 
 function confirmarRegistrarProduccion() {
   const operario = document.getElementById('prod-operario').value.trim();
-  const idManga = document.getElementById('prod-id-manga').value.trim();
+  const idManga = document.getElementById('prod-bovina-select').value;
   const proveedor = document.getElementById('prod-proveedor').value.trim();
   const pesoInicio = Number(document.getElementById('prod-peso-inicio').value) || 0;
   const pesoTuco = Number(document.getElementById('prod-peso-tuco').value) || 0;
 
   if (!operario) { alert('Escribe el nombre del operario.'); return; }
-  if (!idManga) { alert('Ingresa el ID de manga (bovina).'); return; }
+  if (!idManga) { alert('Selecciona una bovina disponible.'); return; }
   if (!proveedor) { alert('Ingresa el proveedor.'); return; }
   if (pesoInicio <= 0) { alert('Ingresa el peso de manga al inicio.'); return; }
   if (pesoTuco < 0 || pesoTuco > pesoInicio) { alert('El peso del tuco no es válido.'); return; }
@@ -220,4 +224,34 @@ function confirmarRegistrarProduccion() {
       confirmBtn.textContent = '✔ Registrar producción';
       confirmBtn.disabled = false;
     });
+  
+  function cargarBovinasDisponibles() {
+  const codigo = document.getElementById('prod-codigo-material').value.trim();
+  const select = document.getElementById('prod-bovina-select');
+  if (!codigo) {
+    select.innerHTML = '<option value="">— Escribe el código del material —</option>';
+    return;
+  }
+  fetch(`${API_URL}?action=bovinas&id_material=${encodeURIComponent(codigo)}&_=${Date.now()}`, { cache: 'no-store' })
+    .then((r) => r.json())
+    .then((data) => {
+      const disponibles = data.filter((b) => Number(b.pesoActual) > 0);
+      select.innerHTML = disponibles.length
+        ? '<option value="">Selecciona una bovina...</option>' +
+          disponibles.map((b) =>
+            `<option value="${b.idBovina}" data-proveedor="${b.proveedor}">${b.idBovina} — ${Number(b.pesoActual).toFixed(1)} kg disponibles (${b.proveedor})</option>`
+          ).join('')
+        : '<option value="">Sin bovinas disponibles para este material</option>';
+    })
+    .catch(() => {
+      select.innerHTML = '<option value="">Error al buscar bovinas</option>';
+    });
+}
+
+function autocompletarProveedorBovina() {
+  const opcion = document.getElementById('prod-bovina-select').selectedOptions[0];
+  if (opcion && opcion.dataset.proveedor) {
+    document.getElementById('prod-proveedor').value = opcion.dataset.proveedor;
+  }
+}
 }
