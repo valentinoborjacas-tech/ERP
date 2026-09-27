@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sellador — Registro de Producción</title>
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  body{ background:#c8c4bb; padding:10px; }
+  .sellador-wrap{ max-width:520px; margin:0 auto; }
+  .sellador-header{ text-align:center; padding:14px 8px; }
+  .sellador-header .titulo{ font-size:20px; font-weight:bold; }
+  .campo{ margin-bottom:12px; }
+  .campo label{ display:block; font-weight:bold; font-size:13px; margin-bottom:4px; }
+  .campo input, .campo select{ width:100%; font-size:18px; padding:10px; box-sizing:border-box; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .peso-utilizado-box{ text-align:center; background:#eef3e0; border:2px solid #7a9c4f; border-radius:4px; padding:10px; margin:10px 0; }
+  .peso-utilizado-box .valor{ font-size:26px; font-weight:bold; color:#3a5a1f; }
+  .btn-grande{ width:100%; padding:16px; font-size:18px; font-weight:bold; }
+  .sellador-nombre-actual{ text-align:center; padding:8px; font-size:14px; }
+  .sellador-nombre-actual a{ color:#2a5db0; cursor:pointer; text-decoration:underline; }
+  .hidden{ display:none !important; }
+  .msg-ok{ background:#e4f3df; border:2px solid #7a9c4f; color:#2f4a1a; padding:12px; text-align:center; border-radius:4px; margin-bottom:12px; font-weight:bold; }
+</style>
+</head>
+<body>
+
+<div class="sellador-wrap bevel-out" style="background:#fff;">
+
+  <div class="sellador-header" style="background:#2b4a7d; color:#fff;">
+    <div class="titulo">🧵 Registro de Producción — Sellador</div>
+  </div>
+
+  <!-- Paso 1: elegir nombre (una sola vez, queda guardado) -->
+  <div id="pantalla-nombre" class="p-4">
+    <div class="campo">
+      <label>¿Quién eres?</label>
+      <input type="text" id="input-nombre-sellador" placeholder="Escribe tu nombre" />
+    </div>
+    <button class="btn-classic btn-primary btn-grande" id="btn-guardar-nombre">Continuar</button>
+  </div>
+
+  <!-- Paso 2: formulario de producción -->
+  <div id="pantalla-form" class="p-4 hidden">
+    <div class="sellador-nombre-actual">
+      Sellador: <b id="txt-nombre-actual"></b> — <a id="btn-cambiar-nombre">cambiar</a>
+    </div>
+
+    <div id="msg-exito" class="msg-ok hidden">✔ Producción registrada correctamente.</div>
+
+    <div class="campo">
+      <label>ID de manga (bovina)</label>
+      <input type="text" id="f-id-manga" placeholder="Ej. BOV-0001" />
+    </div>
+
+    <div class="campo">
+      <label>Proveedor</label>
+      <input type="text" id="f-proveedor" />
+    </div>
+
+    <div class="row2">
+      <div class="campo">
+        <label>Litros</label>
+        <input type="number" id="f-litros" min="0" step="0.01" />
+      </div>
+      <div class="campo">
+        <label>Millares</label>
+        <input type="number" id="f-millares" min="0" step="0.01" />
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="campo">
+        <label>Ancho</label>
+        <input type="number" id="f-ancho" min="0" step="0.01" />
+      </div>
+      <div class="campo">
+        <label>Largo</label>
+        <input type="number" id="f-largo" min="0" step="0.01" />
+      </div>
+    </div>
+
+    <div class="campo">
+      <label>Espesor</label>
+      <input type="number" id="f-espesor" min="0" step="0.01" />
+    </div>
+
+    <div class="row2">
+      <div class="campo">
+        <label>Peso manga inicio (kg)</label>
+        <input type="number" id="f-peso-inicio" min="0" step="0.01" />
+      </div>
+      <div class="campo">
+        <label>Peso tuco (kg)</label>
+        <input type="number" id="f-peso-tuco" min="0" step="0.01" />
+      </div>
+    </div>
+
+    <div class="peso-utilizado-box">
+      <div style="font-size:13px;">Peso utilizado (automático)</div>
+      <div class="valor" id="txt-peso-utilizado">0.00 kg</div>
+    </div>
+
+    <div class="campo">
+      <label>Estado final</label>
+      <select id="f-estado-final">
+        <option value="Terminado">Terminado</option>
+        <option value="No terminado">No terminado</option>
+      </select>
+    </div>
+
+    <button class="btn-classic btn-primary btn-grande" id="btn-registrar">✔ Registrar producción</button>
+  </div>
+
+</div>
+
+<script src="assets/config.js"></script>
+<script>
+  const nombreGuardado = localStorage.getItem('sellador_nombre');
+  if (nombreGuardado) mostrarFormulario(nombreGuardado);
+
+  document.getElementById('btn-guardar-nombre').addEventListener('click', () => {
+    const nombre = document.getElementById('input-nombre-sellador').value.trim();
+    if (!nombre) { alert('Escribe tu nombre.'); return; }
+    localStorage.setItem('sellador_nombre', nombre);
+    mostrarFormulario(nombre);
+  });
+
+  document.getElementById('btn-cambiar-nombre').addEventListener('click', () => {
+    localStorage.removeItem('sellador_nombre');
+    document.getElementById('pantalla-form').classList.add('hidden');
+    document.getElementById('pantalla-nombre').classList.remove('hidden');
+    document.getElementById('input-nombre-sellador').value = '';
+  });
+
+  function mostrarFormulario(nombre) {
+    document.getElementById('txt-nombre-actual').textContent = nombre;
+    document.getElementById('pantalla-nombre').classList.add('hidden');
+    document.getElementById('pantalla-form').classList.remove('hidden');
+  }
+
+  function calcularPesoUtilizado() {
+    const inicio = Number(document.getElementById('f-peso-inicio').value) || 0;
+    const tuco = Number(document.getElementById('f-peso-tuco').value) || 0;
+    const utilizado = Math.max(inicio - tuco, 0);
+    document.getElementById('txt-peso-utilizado').textContent = utilizado.toFixed(2) + ' kg';
+  }
+  document.getElementById('f-peso-inicio').addEventListener('input', calcularPesoUtilizado);
+  document.getElementById('f-peso-tuco').addEventListener('input', calcularPesoUtilizado);
+
+  function limpiarFormulario() {
+    ['f-id-manga','f-proveedor','f-litros','f-millares','f-ancho','f-largo','f-espesor','f-peso-inicio','f-peso-tuco']
+      .forEach((id) => document.getElementById(id).value = '');
+    document.getElementById('f-estado-final').value = 'Terminado';
+    calcularPesoUtilizado();
+  }
+
+  document.getElementById('btn-registrar').addEventListener('click', () => {
+    const idManga = document.getElementById('f-id-manga').value.trim();
+    const proveedor = document.getElementById('f-proveedor').value.trim();
+    const pesoInicio = Number(document.getElementById('f-peso-inicio').value) || 0;
+    const pesoTuco = Number(document.getElementById('f-peso-tuco').value) || 0;
+
+    if (!idManga) { alert('Ingresa el ID de manga (bovina).'); return; }
+    if (!proveedor) { alert('Ingresa el proveedor.'); return; }
+    if (pesoInicio <= 0) { alert('Ingresa el peso de manga al inicio.'); return; }
+    if (pesoTuco < 0 || pesoTuco > pesoInicio) { alert('El peso del tuco no es válido.'); return; }
+
+    const data = {
+      action: 'registrar_produccion',
+      operario: localStorage.getItem('sellador_nombre'),
+      id_manga: idManga,
+      proveedor: proveedor,
+      litros: document.getElementById('f-litros').value,
+      ancho: document.getElementById('f-ancho').value,
+      largo: document.getElementById('f-largo').value,
+      espesor: document.getElementById('f-espesor').value,
+      millares: document.getElementById('f-millares').value,
+      peso_manga_inicio: pesoInicio,
+      peso_tuco: pesoTuco,
+      estado_final: document.getElementById('f-estado-final').value
+    };
+
+    const btn = document.getElementById('btn-registrar');
+    btn.disabled = true;
+    btn.textContent = 'Guardando…';
+
+    fetch(API_URL, { method: 'POST', body: JSON.stringify(data) })
+      .then((r) => r.json())
+      .then((resultado) => {
+        if (resultado.ok) {
+          document.getElementById('msg-exito').classList.remove('hidden');
+          limpiarFormulario();
+          setTimeout(() => document.getElementById('msg-exito').classList.add('hidden'), 3000);
+        } else {
+          alert('Error: ' + resultado.error);
+        }
+      })
+      .catch((err) => alert('Error de conexión: ' + err.message))
+      .finally(() => {
+        btn.disabled = false;
+        btn.textContent = '✔ Registrar producción';
+      });
+  });
+</script>
+</body>
+</html>
