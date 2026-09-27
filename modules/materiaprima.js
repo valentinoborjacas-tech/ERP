@@ -1,11 +1,15 @@
 let mpStockData = [];
+let prodLogData = [];
 let mpMateriales = [];
 let mpMaterialEncontrado = null;
 
+
 window.initMateriaprimaModule = function () {
   fetchMpStock();
+  fetchProduccionLog();
 
   document.getElementById('mp-search-input').addEventListener('keyup', renderMpFiltered);
+  document.getElementById('prod-log-search').addEventListener('keyup', renderProduccionLogFiltrado);
   document.getElementById('btn-ingresar-bovinas').addEventListener('click', abrirIngresoPanel);
   document.getElementById('mp-ingreso-close').addEventListener('click', () => {
     document.getElementById('mp-ingreso-panel').classList.remove('show');
@@ -215,6 +219,7 @@ function confirmarRegistrarProduccion() {
       if (resultado.ok) {
         document.getElementById('mp-produccion-panel').classList.remove('show');
         fetchMpStock();
+        fetchProduccionLog();
       } else {
         alert('Error: ' + resultado.error);
       }
@@ -254,5 +259,39 @@ function autocompletarProveedorBovina() {
   if (opcion && opcion.dataset.proveedor) {
     document.getElementById('prod-proveedor').value = opcion.dataset.proveedor;
   }
+}
+function fetchProduccionLog() {
+  fetch(`${API_URL}?action=produccion&_=${Date.now()}`, { cache: 'no-store' })
+    .then((r) => r.json())
+    .then((data) => { prodLogData = data; renderProduccionLogFiltrado(); })
+    .catch((err) => {
+      document.getElementById('prod-log-tbody').innerHTML = `<tr><td colspan="13">Error: ${err.message}</td></tr>`;
+    });
+}
+
+function renderProduccionLogFiltrado() {
+  const term = (document.getElementById('prod-log-search').value || '').toLowerCase();
+  const filtrados = prodLogData.filter((p) =>
+    String(p.OPERARIO || '').toLowerCase().includes(term) ||
+    String(p.ID_MANGA || '').toLowerCase().includes(term)
+  );
+  document.getElementById('prod-log-tbody').innerHTML = filtrados.length
+    ? filtrados.slice().reverse().map((p) => `
+        <tr>
+          <td data-label="Fecha">${p.FECHA || ''}</td>
+          <td data-label="Operario">${p.OPERARIO || ''}</td>
+          <td data-label="ID Manga">${p.ID_MANGA || ''}</td>
+          <td data-label="Proveedor">${p.PROVEEDOR || ''}</td>
+          <td data-label="Litros">${p.LITROS || ''}</td>
+          <td data-label="Ancho">${p.ANCHO || ''}</td>
+          <td data-label="Largo">${p.LARGO || ''}</td>
+          <td data-label="Espesor">${p.ESPESOR || ''}</td>
+          <td data-label="Millares">${p.MILLARES || ''}</td>
+          <td data-label="Peso inicio">${p.PESO_MANGA_INICIO || ''}</td>
+          <td data-label="Peso tuco">${p.PESO_TUCO || ''}</td>
+          <td data-label="Peso utilizado" style="font-weight:bold;">${p.PESO_UTILIZADO || ''}</td>
+          <td data-label="Estado"><span class="badge ${p.ESTADO_FINAL === 'Terminado' ? 'badge-ok' : 'badge-neutral'}">${p.ESTADO_FINAL || ''}</span></td>
+        </tr>`).join('')
+    : `<tr><td colspan="13">No se encontraron registros.</td></tr>`;
 }
 
