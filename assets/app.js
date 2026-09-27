@@ -8,7 +8,7 @@ const moduleNames = {
   ubicaciones: 'Ubicaciones',
   historial: 'Historial',
   tickets: 'Tickets de Fabricación',
-  ordenes: 'Órdenes de Despacho'
+  ordenes: 'Órdenes de Despacho',
   materiaprima: 'Materia Prima'
 };
 
