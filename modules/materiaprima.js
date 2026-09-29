@@ -9,7 +9,7 @@ window.initMateriaprimaModule = function () {
   fetchProduccionLog();
 
   document.getElementById('mp-search-input').addEventListener('keyup', renderMpFiltered);
-  document.getElementById('prod-log-search').addEventListener('keyup', renderProduccionLogFiltrado);
+ 
   document.getElementById('btn-ingresar-bovinas').addEventListener('click', abrirIngresoPanel);
   document.getElementById('mp-ingreso-close').addEventListener('click', () => {
     document.getElementById('mp-ingreso-panel').classList.remove('show');
@@ -323,30 +323,11 @@ function fetchProduccionLog() {
     });
 }
 
-function renderProduccionLogFiltrado() {
-  const term = (document.getElementById('prod-log-search').value || '').toLowerCase();
-  const filtrados = prodLogData.filter((p) =>
-    String(p.operario || '').toLowerCase().includes(term) ||
-    String(p.idManga || '').toLowerCase().includes(term)
-  );
-  document.getElementById('prod-log-tbody').innerHTML = filtrados.length
-    ? filtrados.slice().reverse().map((p) => `
-        <tr>
-          <td data-label="Fecha">${formatFecha(p.fecha)}</td>
-          <td data-label="Operario">${p.operario || ''}</td>
-          <td data-label="ID Manga">${p.idManga || ''}</td>
-          <td data-label="Proveedor">${p.proveedor || ''}</td>
-          <td data-label="Litros">${p.litros || ''}</td>
-          <td data-label="Ancho">${p.ancho || ''}</td>
-          <td data-label="Largo">${p.largo || ''}</td>
-          <td data-label="Espesor">${p.espesor || ''}</td>
-          <td data-label="Millares">${p.millares || ''}</td>
-          <td data-label="Peso inicio">${p.pesoMangaInicio || ''}</td>
-          <td data-label="Peso tuco">${p.pesoTuco || ''}</td>
-          <td data-label="Peso utilizado" style="font-weight:bold;">${p.pesoUtilizado || ''}</td>
-          <td data-label="Estado"><span class="badge ${p.estadoFinal === 'Terminado' ? 'badge-ok' : 'badge-neutral'}">${p.estadoFinal || ''}</span></td>
-        </tr>`).join('')
-    : `<tr><td colspan="13">No se encontraron registros.</td></tr>`;
+function fetchProduccionLog() {
+  fetch(`${API_URL}?action=produccion&_=${Date.now()}`, { cache: 'no-store' })
+    .then((r) => r.json())
+    .then((data) => { prodLogData = data; })
+    .catch(() => { prodLogData = []; });
 }
 function formatFecha(iso) {
   if (!iso) return '';
