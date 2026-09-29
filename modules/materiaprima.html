@@ -115,13 +115,23 @@
 <!-- Panel: detalle de bovinas de un material -->
 <div class="quick-panel" id="mp-bovinas-panel">
   <div class="quick-panel-header">
-    <span class="quick-panel-title">Bovinas de <span id="mp-bovinas-material">—</span></span>
+    <span class="quick-panel-title">Detalle de <span id="mp-bovinas-material">—</span></span>
     <span class="quick-panel-close" id="mp-bovinas-close">✕ Cerrar</span>
   </div>
-  <div class="table-scroll" style="max-height:280px;">
+
+  <div style="font-weight:bold; margin:6px 0;">Ingresos (<span id="mp-ingresos-count">0</span> mangas)</div>
+  <div class="table-scroll" style="max-height:220px;">
     <table class="data-grid">
-      <thead><tr><th>ID Bovina</th><th>Proveedor</th><th>Peso inicial</th><th>Peso actual</th><th>Corridas</th><th>Estado</th></tr></thead>
+      <thead><tr><th>Fecha</th><th>ID Bovina</th><th>Almacenero</th><th>Proveedor</th><th>Peso ingresado</th><th>Peso actual</th><th>Estado</th></tr></thead>
       <tbody id="mp-bovinas-tbody"></tbody>
+    </table>
+  </div>
+
+  <div style="font-weight:bold; margin:12px 0 6px;">Producciones</div>
+  <div class="table-scroll" style="max-height:220px;">
+    <table class="data-grid">
+      <thead><tr><th>Fecha</th><th>Operario</th><th>ID Manga</th><th>Peso utilizado</th><th>Estado</th></tr></thead>
+      <tbody id="mp-bovinas-produccion-tbody"></tbody>
     </table>
   </div>
 </div>
