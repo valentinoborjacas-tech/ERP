@@ -51,9 +51,19 @@
   </div>
   <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
     <div>
-      <label class="field-label">Operario (sellador)</label>
-      <input class="input-classic" id="prod-operario" />
-    </div>
+  <label class="field-label">Operario (sellador)</label>
+  <select class="input-classic" id="prod-operario-select">
+    <option value="">— Selecciona —</option>
+    <option value="HECTOR">HECTOR</option>
+    <option value="MAURO">MAURO</option>
+    <option value="SAMIR">SAMIR</option>
+    <option value="NELSON">NELSON</option>
+    <option value="ERIKA">ERIKA</option>
+    <option value="GRACIELA">GRACIELA</option>
+    <option value="__otro__">Otro (escribir nombre)...</option>
+  </select>
+  <input class="input-classic" id="prod-operario-otro" placeholder="Escribe el nombre" style="margin-top:6px; display:none;" />
+</div>
     <div>
   <label class="field-label">Código de material</label>
   <input class="input-classic" id="prod-codigo-material" placeholder="Ej. A2020SFB" />
