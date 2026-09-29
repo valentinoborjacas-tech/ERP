@@ -1,0 +1,62 @@
+<div class="module-title">Mi Avance — Sellador</div>
+<div class="module-subtitle">Consulta tu propio historial de producción.</div>
+
+<div id="mi-avance-selector" class="quick-panel show">
+  <div class="quick-panel-header">
+    <span class="quick-panel-title">¿Quién eres?</span>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+    <div>
+      <label class="field-label">Selecciona tu nombre</label>
+      <select class="input-classic" id="mi-avance-select">
+        <option value="">— Selecciona —</option>
+        <option value="HECTOR">HECTOR</option>
+        <option value="MAURO">MAURO</option>
+        <option value="SAMIR">SAMIR</option>
+        <option value="NELSON">NELSON</option>
+        <option value="ERIKA">ERIKA</option>
+        <option value="GRACIELA">GRACIELA</option>
+        <option value="__otro__">Otro (escribir nombre)...</option>
+      </select>
+      <input class="input-classic" id="mi-avance-otro" placeholder="Escribe tu nombre" style="margin-top:6px; display:none;" />
+    </div>
+  </div>
+  <div class="flex justify-end gap-2 mt-3">
+    <button class="btn-classic btn-primary" id="mi-avance-confirmar">Ver mi avance</button>
+  </div>
+</div>
+
+<div id="mi-avance-panel" style="display:none;">
+  <div class="text-center py-1" style="margin-bottom:10px;">
+    Viendo avance de: <b id="mi-avance-nombre">—</b> —
+    <a id="mi-avance-cambiar" style="cursor:pointer; color:#2a5db0; text-decoration:underline;">cambiar</a>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3" style="text-align:center;">
+    <div class="groupbox">
+      <div style="font-size:12px;">Corridas realizadas</div>
+      <div id="mi-avance-total-corridas" style="font-size:22px; font-weight:bold;">0</div>
+    </div>
+    <div class="groupbox">
+      <div style="font-size:12px;">Kg producidos (total)</div>
+      <div id="mi-avance-total-kg" style="font-size:22px; font-weight:bold;">0</div>
+    </div>
+    <div class="groupbox">
+      <div style="font-size:12px;">Última corrida</div>
+      <div id="mi-avance-ultima" style="font-size:14px; font-weight:bold;">—</div>
+    </div>
+  </div>
+
+  <div class="table-scroll">
+    <table class="data-grid" id="mi-avance-table">
+      <thead>
+        <tr>
+          <th>Fecha</th><th>ID Manga</th><th>Proveedor</th><th>Litros</th>
+          <th>Ancho</th><th>Largo</th><th>Espesor</th><th>Millares</th>
+          <th>Peso utilizado</th><th>Estado</th>
+        </tr>
+      </thead>
+      <tbody id="mi-avance-tbody"><tr><td colspan="10">Cargando…</td></tr></tbody>
+    </table>
+  </div>
+</div>
