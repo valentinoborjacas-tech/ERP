@@ -30,6 +30,11 @@ window.initMateriaprimaModule = function () {
   document.getElementById('prod-peso-inicio').addEventListener('input', calcularPesoUtilizadoProduccion);
   document.getElementById('prod-peso-tuco').addEventListener('input', calcularPesoUtilizadoProduccion);
   document.getElementById('prod-codigo-material').addEventListener('keyup', cargarBovinasDisponibles);
+  document.getElementById('prod-operario-select').addEventListener('change', () => {
+  const esOtro = document.getElementById('prod-operario-select').value === '__otro__';
+  document.getElementById('prod-operario-otro').style.display = esOtro ? 'block' : 'none';
+  if (esOtro) document.getElementById('prod-operario-otro').focus();
+});
   document.getElementById('prod-bovina-select').addEventListener('change', autocompletarProveedorBovina);
   document.getElementById('mp-produccion-confirm').addEventListener('click', confirmarRegistrarProduccion);
 };
@@ -190,14 +195,27 @@ function confirmarIngresoBovinas() {
     });
 }
 function abrirPanelProduccion() {
-  ['prod-operario', 'prod-codigo-material', 'prod-proveedor', 'prod-litros', 'prod-ancho',
-   'prod-largo', 'prod-espesor', 'prod-millares', 'prod-peso-inicio', 'prod-peso-tuco']
+  document.getElementById('prod-operario-select').value = localStorage.getItem('prod_last_operario') || '';
+  document.getElementById('prod-operario-otro').value = localStorage.getItem('prod_last_operario_otro') || '';
+  document.getElementById('prod-operario-otro').style.display =
+    document.getElementById('prod-operario-select').value === '__otro__' ? 'block' : 'none';
+
+  document.getElementById('prod-codigo-material').value = localStorage.getItem('prod_last_codigo') || '';
+  document.getElementById('prod-litros').value = localStorage.getItem('prod_last_litros') || '';
+  document.getElementById('prod-largo').value = localStorage.getItem('prod_last_largo') || '';
+  document.getElementById('prod-espesor').value = localStorage.getItem('prod_last_espesor') || '';
+
+  ['prod-proveedor', 'prod-ancho', 'prod-millares', 'prod-peso-inicio', 'prod-peso-tuco']
     .forEach((id) => document.getElementById(id).value = '');
   document.getElementById('prod-estado-final').value = 'Terminado';
   document.getElementById('prod-peso-utilizado').textContent = '0.00';
   document.getElementById('prod-bovina-select').innerHTML = '<option value="">— Escribe el código del material —</option>';
   document.getElementById('mp-produccion-panel').classList.add('show');
   document.getElementById('mp-produccion-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  if (document.getElementById('prod-codigo-material').value) {
+    cargarBovinasDisponibles();
+  }
 }
 
 
