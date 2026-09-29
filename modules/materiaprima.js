@@ -96,19 +96,18 @@ function abrirDetalleBovinas(idMaterial) {
             </tr>`).join('')
         : '<tr><td colspan="7">Sin ingresos registrados.</td></tr>';
 
-      const idsBovina = data.map((b) => b.idBovina);
-      const produccionesDelMaterial = prodLogData.filter((p) => idsBovina.indexOf(p.ID_MANGA) !== -1);
+      const produccionesDelMaterial = prodLogData.filter((p) => p.idMaterial === idMaterial);
 
-      tbodyProduccion.innerHTML = produccionesDelMaterial.length
-        ? produccionesDelMaterial.map((p) => `
-            <tr>
-              <td data-label="Fecha">${p.FECHA || ''}</td>
-              <td data-label="Operario">${p.OPERARIO || ''}</td>
-              <td data-label="ID Manga">${p.ID_MANGA || ''}</td>
-              <td data-label="Peso utilizado">${p.PESO_UTILIZADO || ''}</td>
-              <td data-label="Estado">${p.ESTADO_FINAL || ''}</td>
-            </tr>`).join('')
-        : '<tr><td colspan="5">Sin producciones registradas.</td></tr>';
+tbodyProduccion.innerHTML = produccionesDelMaterial.length
+  ? produccionesDelMaterial.map((p) => `
+      <tr>
+        <td data-label="Fecha">${p.fecha || ''}</td>
+        <td data-label="Operario">${p.operario || ''}</td>
+        <td data-label="ID Manga">${p.idManga || ''}</td>
+        <td data-label="Peso utilizado">${p.pesoUtilizado || ''}</td>
+        <td data-label="Estado">${p.estadoFinal || ''}</td>
+      </tr>`).join('')
+  : '<tr><td colspan="5">Sin producciones registradas.</td></tr>';
     });
 }
 
@@ -294,25 +293,25 @@ function fetchProduccionLog() {
 function renderProduccionLogFiltrado() {
   const term = (document.getElementById('prod-log-search').value || '').toLowerCase();
   const filtrados = prodLogData.filter((p) =>
-    String(p.OPERARIO || '').toLowerCase().includes(term) ||
-    String(p.ID_MANGA || '').toLowerCase().includes(term)
+    String(p.operario || '').toLowerCase().includes(term) ||
+    String(p.idManga || '').toLowerCase().includes(term)
   );
   document.getElementById('prod-log-tbody').innerHTML = filtrados.length
     ? filtrados.slice().reverse().map((p) => `
         <tr>
-          <td data-label="Fecha">${p.FECHA || ''}</td>
-          <td data-label="Operario">${p.OPERARIO || ''}</td>
-          <td data-label="ID Manga">${p.ID_MANGA || ''}</td>
-          <td data-label="Proveedor">${p.PROVEEDOR || ''}</td>
-          <td data-label="Litros">${p.LITROS || ''}</td>
-          <td data-label="Ancho">${p.ANCHO || ''}</td>
-          <td data-label="Largo">${p.LARGO || ''}</td>
-          <td data-label="Espesor">${p.ESPESOR || ''}</td>
-          <td data-label="Millares">${p.MILLARES || ''}</td>
-          <td data-label="Peso inicio">${p.PESO_MANGA_INICIO || ''}</td>
-          <td data-label="Peso tuco">${p.PESO_TUCO || ''}</td>
-          <td data-label="Peso utilizado" style="font-weight:bold;">${p.PESO_UTILIZADO || ''}</td>
-          <td data-label="Estado"><span class="badge ${p.ESTADO_FINAL === 'Terminado' ? 'badge-ok' : 'badge-neutral'}">${p.ESTADO_FINAL || ''}</span></td>
+          <td data-label="Fecha">${p.fecha || ''}</td>
+          <td data-label="Operario">${p.operario || ''}</td>
+          <td data-label="ID Manga">${p.idManga || ''}</td>
+          <td data-label="Proveedor">${p.proveedor || ''}</td>
+          <td data-label="Litros">${p.litros || ''}</td>
+          <td data-label="Ancho">${p.ancho || ''}</td>
+          <td data-label="Largo">${p.largo || ''}</td>
+          <td data-label="Espesor">${p.espesor || ''}</td>
+          <td data-label="Millares">${p.millares || ''}</td>
+          <td data-label="Peso inicio">${p.pesoMangaInicio || ''}</td>
+          <td data-label="Peso tuco">${p.pesoTuco || ''}</td>
+          <td data-label="Peso utilizado" style="font-weight:bold;">${p.pesoUtilizado || ''}</td>
+          <td data-label="Estado"><span class="badge ${p.estadoFinal === 'Terminado' ? 'badge-ok' : 'badge-neutral'}">${p.estadoFinal || ''}</span></td>
         </tr>`).join('')
     : `<tr><td colspan="13">No se encontraron registros.</td></tr>`;
 }
