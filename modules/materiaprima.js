@@ -227,7 +227,10 @@ function calcularPesoUtilizadoProduccion() {
 }
 
 function confirmarRegistrarProduccion() {
-  const operario = document.getElementById('prod-operario').value.trim();
+  const operarioSelect = document.getElementById('prod-operario-select').value;
+const operario = operarioSelect === '__otro__'
+  ? document.getElementById('prod-operario-otro').value.trim()
+  : operarioSelect;
   const idManga = document.getElementById('prod-bovina-select').value;
   const proveedor = document.getElementById('prod-proveedor').value.trim();
   const pesoInicio = Number(document.getElementById('prod-peso-inicio').value) || 0;
@@ -261,10 +264,17 @@ function confirmarRegistrarProduccion() {
     .then((r) => r.json())
     .then((resultado) => {
       if (resultado.ok) {
-        document.getElementById('mp-produccion-panel').classList.remove('show');
-        fetchMpStock();
-        fetchProduccionLog();
-      } else {
+  localStorage.setItem('prod_last_operario', operarioSelect);
+  localStorage.setItem('prod_last_operario_otro', operarioSelect === '__otro__' ? operario : '');
+  localStorage.setItem('prod_last_codigo', document.getElementById('prod-codigo-material').value.trim());
+  localStorage.setItem('prod_last_litros', document.getElementById('prod-litros').value);
+  localStorage.setItem('prod_last_largo', document.getElementById('prod-largo').value);
+  localStorage.setItem('prod_last_espesor', document.getElementById('prod-espesor').value);
+
+  document.getElementById('mp-produccion-panel').classList.remove('show');
+  fetchMpStock();
+  fetchProduccionLog();
+} else {
         alert('Error: ' + resultado.error);
       }
     })
