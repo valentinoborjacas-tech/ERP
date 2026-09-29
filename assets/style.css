@@ -433,3 +433,26 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   #guia-print, #guia-print *{ visibility:visible; }
   #guia-print{ position:absolute; top:0; left:0; width:100%; }
 }
+.btn-ingreso {
+  background: #2E7D32 !important;
+  border-color: #1B5E20 !important;
+  color: #fff !important;
+}
+.btn-ingreso:hover { background: #256428 !important; }
+
+.btn-produccion {
+  background: #1565C0 !important;
+  border-color: #0D47A1 !important;
+  color: #fff !important;
+}
+.btn-produccion:hover { background: #0D47A1 !important; }
+
+.search-bar { gap: 20px; }
+
+#btn-ingresar-bovinas,
+#btn-registrar-produccion {
+  min-height: 52px;
+  padding: 12px 22px;
+  font-size: 15px;
+  font-weight: bold;
+}
