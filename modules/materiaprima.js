@@ -83,25 +83,30 @@ function abrirDetalleBovinas(idMaterial) {
     .then((data) => {
       document.getElementById('mp-ingresos-count').textContent = data.length;
 
-      tbodyIngresos.innerHTML = data.length
-        ? data.map((b) => `
-            <tr>
-              <td data-label="Fecha">${b.fecha || ''}</td>
-              <td data-label="ID Bovina">${b.idBovina}</td>
-              <td data-label="Almacenero">${b.almacenero || ''}</td>
-              <td data-label="Proveedor">${b.proveedor}</td>
-              <td data-label="Peso ingresado">${b.pesoInicial}</td>
-              <td data-label="Peso actual">${b.pesoActual}</td>
-              <td data-label="Estado"><span class="badge ${b.estado === 'Disponible' ? 'badge-ok' : 'badge-neutral'}">${b.estado}</span></td>
-            </tr>`).join('')
-        : '<tr><td colspan="7">Sin ingresos registrados.</td></tr>';
+     tbodyIngresos.innerHTML = data.length
+  ? data.map((b) => {
+      const producida = b.nCorridas > 0;
+      const etiqueta = producida ? 'Producido' : (b.pesoActual > 0 ? 'Disponible' : 'Agotada');
+      const clase = producida || b.pesoActual <= 0 ? 'badge-danger' : 'badge-ok';
+      return `
+      <tr>
+        <td data-label="Fecha">${formatFecha(b.fecha)}</td>
+        <td data-label="ID Bovina">${b.idBovina}</td>
+        <td data-label="Almacenero">${b.almacenero || ''}</td>
+        <td data-label="Proveedor">${b.proveedor}</td>
+        <td data-label="Peso ingresado">${b.pesoInicial}</td>
+        <td data-label="Peso actual">${b.pesoActual}</td>
+        <td data-label="Estado"><span class="badge ${clase}">${etiqueta}</span></td>
+      </tr>`;
+    }).join('')
+  : '<tr><td colspan="7">Sin ingresos registrados.</td></tr>';
 
       const produccionesDelMaterial = prodLogData.filter((p) => p.idMaterial === idMaterial);
 
 tbodyProduccion.innerHTML = produccionesDelMaterial.length
   ? produccionesDelMaterial.map((p) => `
       <tr>
-        <td data-label="Fecha">${p.fecha || ''}</td>
+        <td data-label="Fecha">${formatFecha(p.fecha)}</td>
         <td data-label="Operario">${p.operario || ''}</td>
         <td data-label="ID Manga">${p.idManga || ''}</td>
         <td data-label="Peso utilizado">${p.pesoUtilizado || ''}</td>
@@ -299,7 +304,7 @@ function renderProduccionLogFiltrado() {
   document.getElementById('prod-log-tbody').innerHTML = filtrados.length
     ? filtrados.slice().reverse().map((p) => `
         <tr>
-          <td data-label="Fecha">${p.fecha || ''}</td>
+          <td data-label="Fecha">${formatFecha(p.fecha)}</td>
           <td data-label="Operario">${p.operario || ''}</td>
           <td data-label="ID Manga">${p.idManga || ''}</td>
           <td data-label="Proveedor">${p.proveedor || ''}</td>
@@ -314,5 +319,11 @@ function renderProduccionLogFiltrado() {
           <td data-label="Estado"><span class="badge ${p.estadoFinal === 'Terminado' ? 'badge-ok' : 'badge-neutral'}">${p.estadoFinal || ''}</span></td>
         </tr>`).join('')
     : `<tr><td colspan="13">No se encontraron registros.</td></tr>`;
+}
+function formatFecha(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
