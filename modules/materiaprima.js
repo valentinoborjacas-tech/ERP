@@ -72,21 +72,43 @@ function abrirDetalleBovinas(idMaterial) {
   document.getElementById('mp-bovinas-material').textContent = idMaterial;
   document.getElementById('mp-bovinas-panel').classList.add('show');
   document.getElementById('mp-bovinas-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  const tbody = document.getElementById('mp-bovinas-tbody');
-  tbody.innerHTML = `<tr><td colspan="6">Cargando…</td></tr>`;
+
+  const tbodyIngresos = document.getElementById('mp-bovinas-tbody');
+  const tbodyProduccion = document.getElementById('mp-bovinas-produccion-tbody');
+  tbodyIngresos.innerHTML = '<tr><td colspan="7">Cargando…</td></tr>';
+  tbodyProduccion.innerHTML = '<tr><td colspan="5">Cargando…</td></tr>';
 
   fetch(`${API_URL}?action=bovinas&id_material=${encodeURIComponent(idMaterial)}&_=${Date.now()}`, { cache: 'no-store' })
     .then((r) => r.json())
     .then((data) => {
-      tbody.innerHTML = data.length
+      document.getElementById('mp-ingresos-count').textContent = data.length;
+
+      tbodyIngresos.innerHTML = data.length
         ? data.map((b) => `
             <tr>
-              <td>${b.idBovina}</td><td>${b.proveedor}</td>
-              <td>${b.pesoInicial}</td><td>${b.pesoActual}</td>
-              <td>${b.nCorridas}</td>
-              <td><span class="badge ${b.estado === 'Disponible' ? 'badge-ok' : 'badge-neutral'}">${b.estado}</span></td>
+              <td data-label="Fecha">${b.fecha || ''}</td>
+              <td data-label="ID Bovina">${b.idBovina}</td>
+              <td data-label="Almacenero">${b.almacenero || ''}</td>
+              <td data-label="Proveedor">${b.proveedor}</td>
+              <td data-label="Peso ingresado">${b.pesoInicial}</td>
+              <td data-label="Peso actual">${b.pesoActual}</td>
+              <td data-label="Estado"><span class="badge ${b.estado === 'Disponible' ? 'badge-ok' : 'badge-neutral'}">${b.estado}</span></td>
             </tr>`).join('')
-        : `<tr><td colspan="6">Sin bovinas registradas.</td></tr>`;
+        : '<tr><td colspan="7">Sin ingresos registrados.</td></tr>';
+
+      const idsBovina = data.map((b) => b.idBovina);
+      const produccionesDelMaterial = prodLogData.filter((p) => idsBovina.indexOf(p.ID_MANGA) !== -1);
+
+      tbodyProduccion.innerHTML = produccionesDelMaterial.length
+        ? produccionesDelMaterial.map((p) => `
+            <tr>
+              <td data-label="Fecha">${p.FECHA || ''}</td>
+              <td data-label="Operario">${p.OPERARIO || ''}</td>
+              <td data-label="ID Manga">${p.ID_MANGA || ''}</td>
+              <td data-label="Peso utilizado">${p.PESO_UTILIZADO || ''}</td>
+              <td data-label="Estado">${p.ESTADO_FINAL || ''}</td>
+            </tr>`).join('')
+        : '<tr><td colspan="5">Sin producciones registradas.</td></tr>';
     });
 }
 
