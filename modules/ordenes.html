@@ -13,6 +13,8 @@
     <option value="Despachada">Despachada</option>
   </select>
   <button class="btn-classic btn-primary" id="btn-nueva-orden">+ Nueva Orden</button>
+    <button class="btn-classic" id="btn-subir-oc">📊 Subir OC (Excel)</button>
+  
 </div>
 
 <!-- Panel: crear nueva orden -->
@@ -54,7 +56,37 @@
     <button class="btn-classic btn-primary" id="new-order-confirm">✔ Crear orden</button>
   </div>
 </div>
-
+<!-- Panel: subir orden de compra desde Excel -->
+<div class="quick-panel" id="oc-panel">
+  <div class="quick-panel-header">
+    <span class="quick-panel-title">Verificar stock desde Excel de OC</span>
+    <span class="quick-panel-close" id="oc-panel-close">✕ Cerrar</span>
+  </div>
+  <div class="help-banner">
+    <span>💡</span>
+    <span>Sube el Excel con columnas Ref / Descripción / Cantidad. Si el producto sugerido no es el correcto, corrígelo abajo. Esto solo verifica stock, no crea ninguna orden.</span>
+  </div>
+  <div class="groupbox" style="margin-bottom:14px;">
+    <span class="groupbox-label">Subir archivo</span>
+    <input type="file" id="oc-file-input" accept=".xlsx,.xls,.csv" class="input-classic" />
+  </div>
+  <div class="table-scroll">
+    <table class="data-grid" id="oc-preview-table">
+      <thead>
+        <tr>
+          <th>Ref / Descripción</th>
+          <th>Cantidad</th>
+          <th>Producto sugerido</th>
+          <th>Stock disponible</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody id="oc-preview-tbody">
+        <tr><td colspan="5" style="text-align:center; color:#888;">Sube un Excel para empezar</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
 <!-- Panel: preparar y despachar -->
 <div class="quick-panel" id="dispatch-panel">
   <div class="quick-panel-header">
