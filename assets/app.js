@@ -41,7 +41,7 @@ function loadModule(mod) {
 
   container.innerHTML = `<div class="module-title">Cargando ${moduleNames[mod]}…</div>`;
 
-  fetch(`modules/${mod}.html`)
+     fetch(`modules/${mod}.html?_=${Date.now()}`)
     .then((r) => r.text())
     .then((html) => {
       container.innerHTML = html;
