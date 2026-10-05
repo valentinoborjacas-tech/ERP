@@ -123,10 +123,34 @@
 </div>
 
 <!-- Panel: detalle de bovinas de un material -->
+<!-- Panel: detalle de bovinas de un material -->
 <div class="quick-panel" id="mp-bovinas-panel">
   <div class="quick-panel-header">
-    <span class="quick-panel-title">Detalle de <span id="mp-bovinas-material">—</span></span>
+    <span class="quick-panel-title">Detalle de <span id="mp-bovinas-material">—</span> — <span id="mp-bovinas-descripcion"></span></span>
     <span class="quick-panel-close" id="mp-bovinas-close">✕ Cerrar</span>
+  </div>
+
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+    <div class="groupbox" style="text-align:center;">
+      <div style="font-size:12px;">Salida mangas</div>
+      <div id="mp-resumen-salidas" style="font-size:20px; font-weight:bold;">0</div>
+    </div>
+    <div class="groupbox" style="text-align:center;">
+      <div style="font-size:12px;">Stock de mangas</div>
+      <div id="mp-resumen-stock-mangas" style="font-size:20px; font-weight:bold;">0</div>
+    </div>
+    <div class="groupbox" style="text-align:center;">
+      <div style="font-size:12px;">Kg ingresados</div>
+      <div id="mp-resumen-kg-ingresados" style="font-size:20px; font-weight:bold;">0</div>
+    </div>
+    <div class="groupbox" style="text-align:center;">
+      <div style="font-size:12px;">Kg salientes</div>
+      <div id="mp-resumen-kg-salientes" style="font-size:20px; font-weight:bold;">0</div>
+    </div>
+  </div>
+  <div class="groupbox" style="text-align:center; margin-bottom:14px;">
+    <div style="font-size:12px;">Stock kilos</div>
+    <div id="mp-resumen-stock-kilos" style="font-size:24px; font-weight:bold;">0</div>
   </div>
 
   <div style="font-weight:bold; margin:6px 0;">Ingresos (<span id="mp-ingresos-count">0</span> mangas)</div>
