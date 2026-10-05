@@ -74,7 +74,16 @@ function handleMpTablaClick(e) {
 }
 
 function abrirDetalleBovinas(idMaterial) {
+  const material = mpStockData.find((m) => m.id === idMaterial);
+
   document.getElementById('mp-bovinas-material').textContent = idMaterial;
+  document.getElementById('mp-bovinas-descripcion').textContent = material ? material.descripcion : '';
+  document.getElementById('mp-resumen-salidas').textContent = material ? material.nSalidas : 0;
+  document.getElementById('mp-resumen-stock-mangas').textContent = material ? material.nBovinas : 0;
+  document.getElementById('mp-resumen-kg-ingresados').textContent = material ? material.kgIngresados.toFixed(1) : '0.0';
+  document.getElementById('mp-resumen-kg-salientes').textContent = material ? material.kgConsumidos.toFixed(1) : '0.0';
+  document.getElementById('mp-resumen-stock-kilos').textContent = material ? material.stockActual.toFixed(1) : '0.0';
+
   document.getElementById('mp-bovinas-panel').classList.add('show');
   document.getElementById('mp-bovinas-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
