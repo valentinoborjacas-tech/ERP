@@ -44,11 +44,15 @@ function refrescarTarea() {
   fetch(`${API_URL}?action=produccion&_=${Date.now()}`, { cache: 'no-store' })
     .then((r) => r.json())
     .then((data) => {
+      const panelIniciar = document.getElementById('op-panel-iniciar');
+      const panelActiva = document.getElementById('op-panel-activa');
+      if (!panelIniciar || !panelActiva) return; // el módulo ya no está en pantalla
+
       opTarea = data.find((p) =>
         p.estadoProceso === 'En proceso' && (p.operario || '').toUpperCase() === opNombre.toUpperCase()
       ) || null;
-      document.getElementById('op-panel-iniciar').style.display = opTarea ? 'none' : 'block';
-      document.getElementById('op-panel-activa').style.display = opTarea ? 'block' : 'none';
+      panelIniciar.style.display = opTarea ? 'none' : 'block';
+      panelActiva.style.display = opTarea ? 'block' : 'none';
       if (opTarea) renderTareaActiva(opTarea);
       else cargarBovinasOp();
     })
