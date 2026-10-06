@@ -23,7 +23,7 @@ window.initMateriaprimaModule = function () {
     document.getElementById('mp-bovinas-panel').classList.remove('show');
   });
 
-  document.getElementById('btn-registrar-produccion').addEventListener('click', abrirPanelProduccion);
+  
   document.getElementById('mp-produccion-close').addEventListener('click', () => {
     document.getElementById('mp-produccion-panel').classList.remove('show');
   });
