@@ -1,7 +1,6 @@
 <div class="module-title">Producción — Operario</div>
 <div class="module-subtitle">Elige tu nombre, inicia una manga y ciérrala al terminar.</div>
 
-<!-- Paso 0: quién eres -->
 <div id="op-selector" class="quick-panel show">
   <div class="quick-panel-header"><span class="quick-panel-title">¿Quién eres?</span></div>
   <select class="input-classic" id="op-select" style="min-height:48px; font-size:16px;">
@@ -26,7 +25,7 @@
     <a id="op-cambiar" style="cursor:pointer; color:#2a5db0; text-decoration:underline;">cambiar</a>
   </div>
 
-  <!-- Iniciar una manga -->
+  <!-- PASO 1: Iniciar -->
   <div id="op-panel-iniciar" class="groupbox" style="margin-bottom:14px;">
     <span class="groupbox-label">Iniciar manga</span>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
@@ -40,25 +39,21 @@
           <option value="">— Escribe el código del material —</option>
         </select>
       </div>
-      <div><label class="field-label">Litros</label><input type="number" class="input-classic" id="op-litros" min="0" step="0.01" /></div>
-      <div><label class="field-label">Ancho</label><input type="number" class="input-classic" id="op-ancho" min="0" step="0.01" /></div>
-      <div><label class="field-label">Largo</label><input type="number" class="input-classic" id="op-largo" min="0" step="0.01" /></div>
-      <div><label class="field-label">Espesor</label><input type="number" class="input-classic" id="op-espesor" min="0" step="0.01" /></div>
-      <div><label class="field-label">Millares</label><input type="number" class="input-classic" id="op-millares" min="0" step="0.01" /></div>
     </div>
     <button class="btn-classic btn-ingreso" id="op-iniciar" style="min-height:56px; font-size:18px; font-weight:bold; width:100%;">▶ Iniciar</button>
   </div>
 
-  <!-- Tarea activa -->
+  <!-- PASO 2: Terminar -->
   <div id="op-panel-activa" class="groupbox" style="margin-bottom:14px; display:none;">
-    <span class="groupbox-label">Tarea en proceso</span>
+    <span class="groupbox-label">Manga en proceso — datos de cierre</span>
     <div style="font-size:16px; margin-bottom:10px;">
       Manga <b id="op-act-manga">—</b> · Material <b id="op-act-material">—</b><br>
       <span id="op-act-detalle" style="font-size:13px; color:#555;"></span>
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-      <div><label class="field-label">Peso manga inicio (kg)</label><input type="number" class="input-classic" id="op-peso-inicio" min="0" step="0.01" /></div>
-      <div><label class="field-label">Peso tuco (kg)</label><input type="number" class="input-classic" id="op-peso-tuco" min="0" step="0.01" /></div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+      <div><label class="field-label">Millares <span class="required-mark">*</span></label><input type="number" class="input-classic" id="op-millares" min="0" step="0.01" /></div>
+      <div><label class="field-label">Peso manga (kg) <span class="required-mark">*</span></label><input type="number" class="input-classic" id="op-peso-inicio" min="0" step="0.01" /></div>
+      <div><label class="field-label">Peso tuco (kg) <span class="required-mark">*</span></label><input type="number" class="input-classic" id="op-peso-tuco" min="0" step="0.01" /></div>
       <div>
         <label class="field-label">Estado final</label>
         <select class="input-classic" id="op-estado-final">
@@ -66,11 +61,20 @@
           <option value="No terminado">No terminado</option>
         </select>
       </div>
+      <div><label class="field-label">Litros</label><input type="number" class="input-classic" id="op-litros" min="0" step="0.01" /></div>
+      <div><label class="field-label">Ancho</label><input type="number" class="input-classic" id="op-ancho" min="0" step="0.01" /></div>
+      <div><label class="field-label">Largo</label><input type="number" class="input-classic" id="op-largo" min="0" step="0.01" /></div>
+      <div><label class="field-label">Espesor</label><input type="number" class="input-classic" id="op-espesor" min="0" step="0.01" /></div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label class="field-label">Observaciones</label>
+      <input class="input-classic" id="op-observaciones" placeholder="Opcional" />
     </div>
     <div class="text-center py-1" style="font-weight:bold; margin-bottom:10px;">
       Peso utilizado: <span id="op-peso-utilizado">0.00</span> kg ·
       Merma (tuco): <span id="op-merma">0.00</span> kg (<span id="op-merma-pct">0.0</span>%)
+      <span id="op-merma-badge" class="badge badge-neutral" style="margin-left:8px;">—</span>
     </div>
-    <button class="btn-classic btn-produccion" id="op-terminar" style="min-height:56px; font-size:18px; font-weight:bold; width:100%;">■ Terminar</button>
+    <button class="btn-classic btn-produccion" id="op-terminar" style="min-height:56px; font-size:18px; font-weight:bold; width:100%;">■ Terminar y liberar</button>
   </div>
 </div>
