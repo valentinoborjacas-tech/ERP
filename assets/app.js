@@ -87,7 +87,7 @@ const profiles = {
   operario: {
     label: 'Operario',
     icon: '🏭',
-    modules: ['operaio','miavance'] // en la Fase 3 aquí se agrega el módulo nuevo 'operario'
+    modules: ['operario','miavance'] // en la Fase 3 aquí se agrega el módulo nuevo 'operario'
   }
 };
 
