@@ -76,7 +76,6 @@ hamburgerBtn.addEventListener('click', () => {
 });
 overlayEl.addEventListener('click', closeSidebar);
 
-// ====== Arranque: cargar el módulo inicial (Stock) ======
 // ====== Perfiles (Almacenero / Operario) ======
 const profiles = {
   almacenero: {
