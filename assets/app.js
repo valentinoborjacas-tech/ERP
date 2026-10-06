@@ -77,4 +77,79 @@ hamburgerBtn.addEventListener('click', () => {
 overlayEl.addEventListener('click', closeSidebar);
 
 // ====== Arranque: cargar el módulo inicial (Stock) ======
-loadModule('stock');
+// ====== Perfiles (Almacenero / Operario) ======
+const profiles = {
+  almacenero: {
+    label: 'Almacenero',
+    icon: '📦',
+    modules: ['stock', 'articulos', 'ubicaciones', 'historial', 'tickets', 'ordenes', 'materiaprima']
+  },
+  operario: {
+    label: 'Operario',
+    icon: '🏭',
+    modules: ['miavance'] // en la Fase 3 aquí se agrega el módulo nuevo 'operario'
+  }
+};
+
+function applyProfile(key) {
+  const p = profiles[key];
+  if (!p) return;
+  localStorage.setItem('perfil_activo', key);
+
+  document.querySelectorAll('.nav-item').forEach((i) => {
+    i.style.display = p.modules.includes(i.dataset.module) ? '' : 'none';
+    i.classList.remove('active');
+  });
+
+  const etiqueta = document.getElementById('perfil-actual-label');
+  if (etiqueta) etiqueta.textContent = `${p.icon} Perfil: ${p.label}`;
+
+  const primero = document.querySelector(`.nav-item[data-module="${p.modules[0]}"]`);
+  if (primero) primero.click();
+}
+
+function mostrarSelectorPerfil() {
+  if (document.getElementById('perfil-overlay')) return;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'perfil-overlay';
+  overlay.style.cssText =
+    'position:fixed; inset:0; z-index:9999; background:#e9e6da; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; padding:20px;';
+
+  overlay.innerHTML = `
+    <div style="font-size:24px; font-weight:bold; color:#0a3d7a;">SGA-Almacén</div>
+    <div style="font-size:16px;">¿Con qué perfil vas a trabajar?</div>
+    <div style="display:flex; gap:24px; flex-wrap:wrap; justify-content:center;">
+      <button data-perfil="almacenero" style="min-width:240px; min-height:140px; font-size:22px; font-weight:bold; color:#fff; background:#2E7D32; border:2px solid #1B5E20; cursor:pointer;">📦<br>Almacenero</button>
+      <button data-perfil="operario" style="min-width:240px; min-height:140px; font-size:22px; font-weight:bold; color:#fff; background:#1565C0; border:2px solid #0D47A1; cursor:pointer;">🏭<br>Operario</button>
+    </div>`;
+
+  overlay.querySelectorAll('[data-perfil]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      overlay.remove();
+      applyProfile(btn.dataset.perfil);
+    });
+  });
+
+  document.body.appendChild(overlay);
+}
+
+// Etiqueta del perfil + botón "Cambiar perfil" al pie del sidebar
+const perfilBox = document.createElement('div');
+perfilBox.style.cssText = 'margin-top:auto; padding:12px; border-top:1px solid #c9c5b5; font-size:12px;';
+perfilBox.innerHTML = `
+  <div id="perfil-actual-label" style="font-weight:bold; margin-bottom:6px;"></div>
+  <a id="perfil-cambiar" style="cursor:pointer; color:#2a5db0; text-decoration:underline;">Cambiar perfil</a>`;
+sidebarEl.appendChild(perfilBox);
+document.getElementById('perfil-cambiar').addEventListener('click', () => {
+  localStorage.removeItem('perfil_activo');
+  mostrarSelectorPerfil();
+});
+
+// ====== Arranque ======
+const perfilGuardado = localStorage.getItem('perfil_activo');
+if (perfilGuardado && profiles[perfilGuardado]) {
+  applyProfile(perfilGuardado);
+} else {
+  mostrarSelectorPerfil();
+}
