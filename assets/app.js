@@ -104,8 +104,13 @@ function applyProfile(key) {
   const etiqueta = document.getElementById('perfil-actual-label');
   if (etiqueta) etiqueta.textContent = `${p.icon} Perfil: ${p.label}`;
 
-  const primero = document.querySelector(`.nav-item[data-module="${p.modules[0]}"]`);
-  if (primero) primero.click();
+     const primero = document.querySelector(`.nav-item[data-module="${p.modules[0]}"]`);
+  if (primero) {
+    primero.click();
+  } else {
+    document.getElementById('main-content').innerHTML =
+      '<div class="module-title">Sin módulos disponibles para este perfil</div>';
+  }
 }
 
 function mostrarSelectorPerfil() {
