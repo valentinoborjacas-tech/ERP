@@ -365,7 +365,7 @@ const operario = operarioSelect === '__otro__'
       select.innerHTML = disponibles.length
         ? '<option value="">Selecciona una bovina...</option>' +
           disponibles.map((b) =>
-            `<option value="${b.idBovina}" data-proveedor="${b.proveedor}">${b.idBovina} — ${Number(b.pesoActual).toFixed(1)} kg disponibles (${b.proveedor})</option>`
+                       `<option value="${b.idBovina}" data-proveedor="${b.proveedor}" data-peso="${Number(b.pesoActual)}">${b.idBovina} — ${Number(b.pesoActual).toFixed(1)} kg disponibles (${b.proveedor})</option>`
           ).join('')
         : '<option value="">Sin bovinas disponibles para este material</option>';
     })
@@ -378,6 +378,10 @@ function autocompletarProveedorBovina() {
   const opcion = document.getElementById('prod-bovina-select').selectedOptions[0];
   if (opcion && opcion.dataset.proveedor) {
     document.getElementById('prod-proveedor').value = opcion.dataset.proveedor;
+  }
+  if (opcion && opcion.dataset.peso) {
+    document.getElementById('prod-peso-inicio').value = opcion.dataset.peso;
+    calcularPesoUtilizadoProduccion();
   }
 }
 function fetchProduccionLog() {
