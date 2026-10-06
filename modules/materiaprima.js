@@ -37,6 +37,16 @@ window.initMateriaprimaModule = function () {
 });
   document.getElementById('prod-bovina-select').addEventListener('change', autocompletarProveedorBovina);
   document.getElementById('mp-produccion-confirm').addEventListener('click', confirmarRegistrarProduccion);
+    document.getElementById('mp-almacenero-select').addEventListener('change', () => {
+    const esOtro = document.getElementById('mp-almacenero-select').value === '__otro__';
+    document.getElementById('mp-almacenero-otro').style.display = esOtro ? 'block' : 'none';
+    if (esOtro) document.getElementById('mp-almacenero-otro').focus();
+  });
+  document.getElementById('mp-proveedor-select').addEventListener('change', () => {
+    const esOtro = document.getElementById('mp-proveedor-select').value === '__otro__';
+    document.getElementById('mp-proveedor-otro').style.display = esOtro ? 'block' : 'none';
+    if (esOtro) document.getElementById('mp-proveedor-otro').focus();
+  });
 };
 
 
@@ -134,10 +144,20 @@ tbodyProduccion.innerHTML = produccionesDelMaterial.length
 function abrirIngresoPanel() {
   document.getElementById('mp-codigo').value = '';
   document.getElementById('mp-descripcion').value = '';
+  document.getElementById('mp-codigo-resultados').innerHTML = '';
   document.getElementById('mp-cantidad-bovinas').value = 1;
-  document.getElementById('mp-proveedor').value = '';
-  document.getElementById('mp-almacenero').value = '';
   mpMaterialEncontrado = null;
+
+  document.getElementById('mp-almacenero-select').value = localStorage.getItem('mp_last_almacenero') || '';
+  document.getElementById('mp-almacenero-otro').value = localStorage.getItem('mp_last_almacenero_otro') || '';
+  document.getElementById('mp-almacenero-otro').style.display =
+    document.getElementById('mp-almacenero-select').value === '__otro__' ? 'block' : 'none';
+
+  document.getElementById('mp-proveedor-select').value = localStorage.getItem('mp_last_proveedor') || '';
+  document.getElementById('mp-proveedor-otro').value = localStorage.getItem('mp_last_proveedor_otro') || '';
+  document.getElementById('mp-proveedor-otro').style.display =
+    document.getElementById('mp-proveedor-select').value === '__otro__' ? 'block' : 'none';
+
   document.getElementById('mp-ingreso-panel').classList.add('show');
   renderCamposPeso();
 
@@ -150,9 +170,33 @@ function abrirIngresoPanel() {
 
 function buscarMaterialPorCodigo() {
   const codigo = document.getElementById('mp-codigo').value.trim();
-  const encontrado = mpMateriales.find((m) => m.ID === codigo);
-  mpMaterialEncontrado = encontrado || null;
-  document.getElementById('mp-descripcion').value = encontrado ? encontrado.DESCRIPCION : '';
+  const resultadosDiv = document.getElementById('mp-codigo-resultados');
+
+  const exacto = mpMateriales.find((m) => m.ID === codigo);
+  mpMaterialEncontrado = exacto || null;
+  document.getElementById('mp-descripcion').value = exacto ? exacto.DESCRIPCION : '';
+
+  if (!codigo) { resultadosDiv.innerHTML = ''; return; }
+
+  const coincidencias = mpMateriales.filter((m) =>
+    String(m.ID || '').toLowerCase().includes(codigo.toLowerCase()) ||
+    String(m.DESCRIPCION || '').toLowerCase().includes(codigo.toLowerCase())
+  ).slice(0, 6);
+
+  resultadosDiv.innerHTML = coincidencias.length
+    ? `<div style="position:absolute; z-index:10; background:#fff; border:1px solid var(--border-mid); width:100%; max-height:160px; overflow-y:auto;">` +
+      coincidencias.map((m) => `<div class="nav-item" style="cursor:pointer;" data-id="${m.ID}" data-desc="${m.DESCRIPCION || ''}">${m.ID} — ${m.DESCRIPCION || ''}</div>`).join('') +
+      `</div>`
+    : '';
+
+  resultadosDiv.querySelectorAll('[data-id]').forEach((el) => {
+    el.addEventListener('click', () => {
+      document.getElementById('mp-codigo').value = el.dataset.id;
+      document.getElementById('mp-descripcion').value = el.dataset.desc;
+      mpMaterialEncontrado = mpMateriales.find((m) => m.ID === el.dataset.id) || null;
+      resultadosDiv.innerHTML = '';
+    });
+  });
 }
 
 function renderCamposPeso() {
@@ -172,9 +216,16 @@ function confirmarIngresoBovinas() {
   const pesos = Array.from(document.querySelectorAll('.mp-peso-input')).map((inp) => Number(inp.value) || 0);
   if (pesos.some((p) => p <= 0)) { alert('Completa el peso de todas las bovinas.'); return; }
 
-  const proveedor = document.getElementById('mp-proveedor').value.trim();
-  const almacenero = document.getElementById('mp-almacenero').value.trim();
-  if (!proveedor || !almacenero) { alert('Proveedor y Almacenero son obligatorios.'); return; }
+  const almaceneroSelect = document.getElementById('mp-almacenero-select').value;
+  const almacenero = almaceneroSelect === '__otro__'
+    ? document.getElementById('mp-almacenero-otro').value.trim()
+    : almaceneroSelect;
+  if (!almacenero) { alert('Selecciona o escribe el almacenero.'); return; }
+
+  const proveedorSelect = document.getElementById('mp-proveedor-select').value;
+  const proveedor = proveedorSelect === '__otro__'
+    ? document.getElementById('mp-proveedor-otro').value.trim()
+    : proveedorSelect;
 
   const confirmBtn = document.getElementById('mp-ingreso-confirm');
   confirmBtn.textContent = 'Guardando…';
@@ -191,7 +242,13 @@ function confirmarIngresoBovinas() {
     .then((r) => r.json())
     .then((resultado) => {
       if (resultado.ok) {
-        document.getElementById('mp-ingreso-panel').classList.remove('show');
+        localStorage.setItem('mp_last_almacenero', almaceneroSelect);
+        localStorage.setItem('mp_last_almacenero_otro', almaceneroSelect === '__otro__' ? almacenero : '');
+        localStorage.setItem('mp_last_proveedor', proveedorSelect);
+        localStorage.setItem('mp_last_proveedor_otro', proveedorSelect === '__otro__' ? proveedor : '');
+
+        document.getElementById('mp-cantidad-bovinas').value = 1;
+        renderCamposPeso();
         fetchMpStock();
       } else {
         alert('Error: ' + resultado.error);
