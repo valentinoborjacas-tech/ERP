@@ -11,6 +11,11 @@ window.initMateriaprimaModule = function () {
   document.getElementById('mp-search-input').addEventListener('keyup', renderMpFiltered);
  
   document.getElementById('btn-ingresar-bovinas').addEventListener('click', abrirIngresoPanel);
+  document.getElementById('btn-importar-mangas').addEventListener('click', abrirImportarPanel);
+  document.getElementById('mp-imp-cerrar').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('mp-importar-panel').classList.remove('show'); });
+  document.getElementById('mp-imp-file').addEventListener('change', mpImpManejarArchivo);
+  document.getElementById('mp-imp-confirmar').addEventListener('click', mpImpConfirmar);
+  document.getElementById('mp-imp-plantilla').addEventListener('click', mpImpPlantilla);
   document.getElementById('mp-ingreso-close').addEventListener('click', () => {
     document.getElementById('mp-ingreso-panel').classList.remove('show');
   });
@@ -423,4 +428,125 @@ function formatFecha(iso) {
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
+// ===== Importar mangas desde Excel =====
+let mpImpFilas = [];
 
+async function mpImpAsegurarMateriales() {
+  if (Array.isArray(mpMateriales) && mpMateriales.length) return;
+  try {
+    const r = await fetch(`${API_URL}?action=materiales&_=${Date.now()}`, { cache: 'no-store' });
+    const d = await r.json();
+    mpMateriales = Array.isArray(d) ? d : (d.data || d.materiales || []);
+  } catch (e) { console.error('materiales', e); }
+}
+const mpImpId   = (m) => String(m.ID ?? m.id ?? '').trim().toUpperCase();
+const mpImpDesc = (m) => String(m.DESCRIPCION ?? m.descripcion ?? '').trim();
+
+function abrirImportarPanel() {
+  document.getElementById('mp-ingreso-panel').classList.remove('show');
+  document.getElementById('mp-imp-almacenero').value = localStorage.getItem('mp_last_almacenero') || '';
+  document.getElementById('mp-imp-proveedor').value = localStorage.getItem('mp_last_proveedor') || '';
+  document.getElementById('mp-importar-panel').classList.add('show');
+  document.getElementById('mp-importar-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  mpImpAsegurarMateriales();
+}
+
+function mpImpPlantilla() {
+  const ws = XLSX.utils.aoa_to_sheet([['ID_BOVINA', 'PESO_KG'], ['Z3310CFB', 25.4], ['Z3310CFB', 26.1]]);
+  ws['!cols'] = [{ wch: 20 }, { wch: 12 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Mangas');
+  XLSX.writeFile(wb, 'Plantilla_Ingreso_Mangas.xlsx');
+}
+
+async function mpImpManejarArchivo(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  await mpImpAsegurarMateriales();
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const filas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+
+    let hIdx = -1, cId = -1, cPeso = -1;
+    for (let i = 0; i < Math.min(filas.length, 30); i++) {
+      const f = filas[i].map((c) => String(c).trim().toUpperCase());
+      const a = f.findIndex((c) => c.startsWith('ID'));
+      const b = f.findIndex((c) => c.startsWith('PESO'));
+      if (a >= 0 && b >= 0) { hIdx = i; cId = a; cPeso = b; break; }
+    }
+    if (hIdx < 0) { alert('No encontré las columnas ID_BOVINA y PESO_KG. Usa la plantilla.'); return; }
+
+    const mapa = {};
+    mpMateriales.forEach((m) => { mapa[mpImpId(m)] = m; });
+
+    mpImpFilas = [];
+    for (let i = hIdx + 1; i < filas.length; i++) {
+      const codigo = String(filas[i][cId] ?? '').trim().toUpperCase();
+      const raw = filas[i][cPeso];
+      if (!codigo && raw === '') continue;
+      const peso = Number(String(raw).replace(',', '.'));
+      const mat = mapa[codigo];
+      const estado = (!codigo || !mat) ? 'sin_codigo' : (!(peso > 0) ? 'sin_peso' : 'ok');
+      mpImpFilas.push({ codigo, peso, desc: mat ? mpImpDesc(mat) : '', idReal: mat ? String(mat.ID ?? mat.id) : '', estado });
+    }
+    mpImpRender();
+  } catch (e) { alert('No se pudo leer el archivo: ' + e.message); }
+}
+
+function mpImpRender() {
+  const tbody = document.getElementById('mp-imp-tbody');
+  if (!tbody) return;
+  const validas = mpImpFilas.filter((f) => f.estado === 'ok');
+  const kg = validas.reduce((s, f) => s + f.peso, 0);
+
+  tbody.innerHTML = mpImpFilas.length ? mpImpFilas.map((f, i) => {
+    const badge = f.estado === 'ok' ? '<span class="badge-ok">✅ OK</span>'
+      : f.estado === 'sin_codigo' ? '<span class="badge-danger">❌ Código no existe</span>'
+      : '<span class="badge-danger">❌ Peso inválido</span>';
+    return `<tr><td>${i + 1}</td><td>${f.codigo || '—'}</td><td>${f.desc}</td><td>${isNaN(f.peso) ? '—' : f.peso}</td><td>${badge}</td></tr>`;
+  }).join('') : '<tr><td colspan="5">El archivo no tiene filas.</td></tr>';
+
+  document.getElementById('mp-imp-resumen').innerHTML =
+    `<b>${validas.length}</b> mangas válidas (${kg.toFixed(1)} kg) · <b>${mpImpFilas.length - validas.length}</b> con error (se omiten)`;
+  document.getElementById('mp-imp-confirmar').disabled = validas.length === 0;
+}
+
+async function mpImpConfirmar() {
+  const almacenero = document.getElementById('mp-imp-almacenero').value.trim();
+  const proveedor = document.getElementById('mp-imp-proveedor').value.trim();
+  if (!almacenero) { alert('Selecciona el almacenero.'); return; }
+
+  const validas = mpImpFilas.filter((f) => f.estado === 'ok');
+  if (!validas.length) return;
+
+  const grupos = {};
+  validas.forEach((f) => { (grupos[f.idReal] = grupos[f.idReal] || []).push(f.peso); });
+
+  const btn = document.getElementById('mp-imp-confirmar');
+  btn.disabled = true; btn.textContent = 'Importando…';
+
+  let okCount = 0; const errores = [];
+  for (const [idMat, pesos] of Object.entries(grupos)) {
+    try {
+      const r = await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'ingresar_bovinas', id_material: idMat, pesos, proveedor, almacenero })
+      });
+      const res = await r.json();
+      if (res.ok) okCount += pesos.length; else errores.push(`${idMat}: ${res.error}`);
+    } catch (e) { errores.push(`${idMat}: ${e.message}`); }
+  }
+
+  localStorage.setItem('mp_last_almacenero', almacenero);
+  if (proveedor) localStorage.setItem('mp_last_proveedor', proveedor);
+  alert(`Importadas ${okCount} mangas.` + (errores.length ? `\n\nErrores:\n${errores.join('\n')}` : ''));
+
+  if (!document.getElementById('mp-imp-confirmar')) return;
+  btn.textContent = '✔ Importar mangas válidas';
+  if (!errores.length) {
+    mpImpFilas = [];
+    document.getElementById('mp-imp-file').value = '';
+    mpImpRender();
+  } else btn.disabled = false;
+  fetchMpStock();
+}
