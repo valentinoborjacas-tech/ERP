@@ -168,33 +168,51 @@ function abrirIngresoPanel() {
   }
 }
 
-function buscarMaterialPorCodigo() {
-  const codigo = document.getElementById('mp-codigo').value.trim();
-  const resultadosDiv = document.getElementById('mp-codigo-resultados');
+async function buscarMaterialPorCodigo() {
+  const input = document.getElementById('mp-codigo');
+  const lista = document.getElementById('mp-codigo-resultados');
+  const desc  = document.getElementById('mp-descripcion');
+  if (!input || !lista || !desc) return;
 
-  const exacto = mpMateriales.find((m) => m.ID === codigo);
-  mpMaterialEncontrado = exacto || null;
-  document.getElementById('mp-descripcion').value = exacto ? exacto.DESCRIPCION : '';
+  const q = input.value.trim().toUpperCase();
+  mpMaterialEncontrado = null;
+  desc.value = '';
+  lista.innerHTML = '';
+  lista.style.display = 'none';
+  if (!q) return;
 
-  if (!codigo) { resultadosDiv.innerHTML = ''; return; }
+  if (!Array.isArray(mpMateriales) || mpMateriales.length === 0) {
+    try {
+      const r = await fetch(`${API_URL}?action=materiales`);
+      const d = await r.json();
+      mpMateriales = Array.isArray(d) ? d : (d.data || d.materiales || []);
+    } catch (e) { console.error('materiales', e); return; }
+  }
+  if (!document.getElementById('mp-codigo')) return;
 
-  const coincidencias = mpMateriales.filter((m) =>
-    String(m.ID || '').toLowerCase().includes(codigo.toLowerCase()) ||
-    String(m.DESCRIPCION || '').toLowerCase().includes(codigo.toLowerCase())
-  ).slice(0, 6);
+  const getId   = m => String(m.id ?? m.ID ?? m.codigo ?? '').trim();
+  const getDesc = m => String(m.descripcion ?? m.DESCRIPCION ?? '').trim();
 
-  resultadosDiv.innerHTML = coincidencias.length
-    ? `<div style="position:absolute; z-index:10; background:#fff; border:1px solid var(--border-mid); width:100%; max-height:160px; overflow-y:auto;">` +
-      coincidencias.map((m) => `<div class="nav-item" style="cursor:pointer;" data-id="${m.ID}" data-desc="${m.DESCRIPCION || ''}">${m.ID} — ${m.DESCRIPCION || ''}</div>`).join('') +
-      `</div>`
-    : '';
+  const exacto = mpMateriales.find(m => getId(m).toUpperCase() === q);
+  if (exacto) {
+    mpMaterialEncontrado = exacto;
+    desc.value = getDesc(exacto);
+    return;
+  }
 
-  resultadosDiv.querySelectorAll('[data-id]').forEach((el) => {
+  const parciales = mpMateriales
+    .filter(m => getId(m).toUpperCase().includes(q) || getDesc(m).toUpperCase().includes(q))
+    .slice(0, 6);
+  if (!parciales.length) return;
+
+  lista.innerHTML = parciales.map(m =>
+    `<div data-id="${getId(m)}" style="padding:4px 8px;cursor:pointer;border-bottom:1px solid #ddd;">
+       <b>${getId(m)}</b> — ${getDesc(m)}</div>`).join('');
+  lista.style.display = 'block';
+  lista.querySelectorAll('[data-id]').forEach(el => {
     el.addEventListener('click', () => {
-      document.getElementById('mp-codigo').value = el.dataset.id;
-      document.getElementById('mp-descripcion').value = el.dataset.desc;
-      mpMaterialEncontrado = mpMateriales.find((m) => m.ID === el.dataset.id) || null;
-      resultadosDiv.innerHTML = '';
+      input.value = el.dataset.id;
+      buscarMaterialPorCodigo();
     });
   });
 }
