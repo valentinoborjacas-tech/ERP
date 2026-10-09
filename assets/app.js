@@ -13,11 +13,12 @@ const moduleNames = {
   operario: 'Producción — Operario',
   planta: 'En planta',
   miavance: 'Mi Avance Sellador'
+  importar:'Importar mangas'
 };
 
 // Módulos que ya tienen su archivo modules/<nombre>.html + .js construidos.
 // Cuando termines otro módulo, agrégalo aquí (ej. 'articulos').
-const builtModules = ['stock', 'articulos','tickets', 'ordenes','ubicaciones','materiaprima','miavance','operario','planta'];
+const builtModules = ['stock', 'articulos','tickets', 'ordenes','ubicaciones','materiaprima','miavance','operario','planta','importar'];
 
 document.querySelectorAll('.nav-item').forEach((item) => {
   item.addEventListener('click', () => {
@@ -83,7 +84,7 @@ const profiles = {
   almacenero: {
     label: 'Almacenero',
     icon: '📦',
-    modules: ['stock', 'articulos', 'ubicaciones', 'historial', 'tickets', 'ordenes', 'materiaprima','planta']
+    modules: ['stock', 'articulos', 'ubicaciones', 'historial', 'tickets', 'ordenes', 'materiaprima','planta','importar']
   },
   operario: {
     label: 'Operario',
