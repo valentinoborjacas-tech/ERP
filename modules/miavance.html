@@ -32,7 +32,7 @@
     <a id="mi-avance-cambiar" style="cursor:pointer; color:#2a5db0; text-decoration:underline;">cambiar</a>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3" style="text-align:center;">
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3" style="text-align:center;">
     <div class="groupbox">
       <div style="font-size:12px;">Corridas realizadas</div>
       <div id="mi-avance-total-corridas" style="font-size:22px; font-weight:bold;">0</div>
@@ -40,6 +40,11 @@
     <div class="groupbox">
       <div style="font-size:12px;">Kg producidos (total)</div>
       <div id="mi-avance-total-kg" style="font-size:22px; font-weight:bold;">0</div>
+    </div>
+        <div class="groupbox">
+      <div style="font-size:12px;">Diferencia total (kg)</div>
+      <div id="mi-avance-total-dif" style="font-size:22px; font-weight:bold;">0.00</div>
+      <div id="mi-avance-total-dif-txt" style="font-size:12px;"></div>
     </div>
     <div class="groupbox">
       <div style="font-size:12px;">Última corrida</div>
@@ -53,10 +58,10 @@
         <tr>
           <th>Fecha</th><th>ID Manga</th><th>Proveedor</th><th>Litros</th>
           <th>Ancho</th><th>Largo</th><th>Espesor</th><th>Millares</th>
-          <th>Peso utilizado</th><th>Estado</th>
+          <th>Peso utilizado</th><th>Fórmula (kg)</th><th>Real (kg)</th><th>Diferencia (kg)</th><th>Estado</th>
         </tr>
       </thead>
-      <tbody id="mi-avance-tbody"><tr><td colspan="10">Cargando…</td></tr></tbody>
+      <tbody id="mi-avance-tbody"><tr><td colspan="13">Cargando…</td></tr></tbody>
     </table>
   </div>
 </div>
