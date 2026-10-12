@@ -52,6 +52,15 @@ window.initMiavanceModule = function () {
   document.getElementById('mi-avance-mes-prev').addEventListener('click', () => _maMoverMes(-1));
   document.getElementById('mi-avance-mes-next').addEventListener('click', () => _maMoverMes(1));
   document.getElementById('mi-avance-mes-hoy').addEventListener('click', () => { _maMes = _maMesActual(); renderDashboardMes(); });
+    const _wrap = document.getElementById('mi-avance-tabla-wrap');
+  const _setFull = (on) => {
+    _wrap.classList.toggle('ma-full', on);
+    document.body.style.overflow = on ? 'hidden' : '';
+    document.getElementById('mi-avance-full-mes').textContent = document.getElementById('mi-avance-mes-label').textContent;
+  };
+  document.getElementById('mi-avance-full-abrir').addEventListener('click', () => _setFull(true));
+  document.getElementById('mi-avance-full-cerrar').addEventListener('click', () => _setFull(false));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') _setFull(false); });
 
   const guardado = localStorage.getItem('mi_avance_operario');
   if (guardado) mostrarAvanceDe(guardado);
