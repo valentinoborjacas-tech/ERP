@@ -15,6 +15,13 @@
   .ma-bar { flex:1; background:#2a5db0; min-height:2px; border-radius:2px 2px 0 0; position:relative; }
   .ma-bar.vacio { background:#ddd; }
   .ma-chart-eje { display:flex; justify-content:space-between; font-size:10px; color:#777; padding:2px 4px 0; margin-bottom:12px; }
+    .ma-scroll { max-height:340px; overflow:auto; border:1px solid #b9b9b9; }
+  .ma-scroll thead th { position:sticky; top:0; background:#e8e8e8; z-index:2; }
+  .ma-full-bar { display:flex; justify-content:flex-end; margin-top:6px; }
+  #mi-avance-tabla-wrap.ma-full { position:fixed; inset:0; z-index:9999; background:#fff; padding:12px; overflow:hidden; display:flex; flex-direction:column; }
+  #mi-avance-tabla-wrap.ma-full .ma-scroll { max-height:none; flex:1; }
+  #mi-avance-tabla-wrap .ma-full-cerrar { display:none; }
+  #mi-avance-tabla-wrap.ma-full .ma-full-cerrar { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-weight:bold; }
 </style>
 
 <div id="mi-avance-selector" class="quick-panel show">
@@ -92,7 +99,12 @@
   <div class="ma-chart" id="mi-avance-chart"></div>
   <div class="ma-chart-eje"><span>1</span><span id="mi-avance-chart-fin">30</span></div>
 
-  <div class="table-scroll">
+    <div id="mi-avance-tabla-wrap">
+    <div class="ma-full-cerrar">
+      <span>Mis producciones — <span id="mi-avance-full-mes"></span></span>
+      <button class="btn-classic" id="mi-avance-full-cerrar">✕ Cerrar</button>
+    </div>
+  <div class="table-scroll ma-scroll">
     <table class="data-grid" id="mi-avance-table">
       <thead>
         <tr>
@@ -102,7 +114,11 @@
           <th>Diferencia (kg)</th><th>Estado</th>
         </tr>
       </thead>
-      <tbody id="mi-avance-tbody"><tr><td colspan="13">Cargando…</td></tr></tbody>
+           <tbody id="mi-avance-tbody"><tr><td colspan="13">Cargando…</td></tr></tbody>
     </table>
+  </div>
+    <div class="ma-full-bar">
+      <button class="btn-classic" id="mi-avance-full-abrir">⛶ Ver en pantalla completa</button>
+    </div>
   </div>
 </div>
