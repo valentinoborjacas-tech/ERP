@@ -183,7 +183,11 @@ function terminarTarea() {
     body: JSON.stringify({
       action: 'terminar_produccion',
       id_produccion: opTarea.idProduccion,
-      millares, litros, ancho, largo, espesor,
+          millares,
+      litros: Number(litros) || '',
+      ancho: Number(ancho) || '',
+      largo: Number(largo) || '',
+      espesor: Number(espesor) || '',
       peso_manga_inicio: inicio,
       peso_tuco: tuco,
       estado_final: document.getElementById('op-estado-final').value,
