@@ -11,11 +11,12 @@ window.initMateriaprimaModule = function () {
   document.getElementById('mp-search-input').addEventListener('keyup', renderMpFiltered);
  
   document.getElementById('btn-ingresar-bovinas').addEventListener('click', abrirIngresoPanel);
-  document.getElementById('btn-importar-mangas').addEventListener('click', abrirImportarPanel);
-  document.getElementById('mp-imp-cerrar').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('mp-importar-panel').classList.remove('show'); });
-  document.getElementById('mp-imp-file').addEventListener('change', mpImpManejarArchivo);
-  document.getElementById('mp-imp-confirmar').addEventListener('click', mpImpConfirmar);
-  document.getElementById('mp-imp-plantilla').addEventListener('click', mpImpPlantilla);
+   const _on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+  _on('btn-importar-mangas', 'click', abrirImportarPanel);
+  _on('mp-imp-cerrar', 'click', (e) => { e.preventDefault(); document.getElementById('mp-importar-panel').classList.remove('show'); });
+  _on('mp-imp-file', 'change', mpImpManejarArchivo);
+  _on('mp-imp-confirmar', 'click', mpImpConfirmar);
+  _on('mp-imp-plantilla', 'click', mpImpPlantilla);
   document.getElementById('mp-ingreso-close').addEventListener('click', () => {
     document.getElementById('mp-ingreso-panel').classList.remove('show');
   });
@@ -223,8 +224,15 @@ async function buscarMaterialPorCodigo() {
 }
 
 function renderCamposPeso() {
-  const cantidad = parseInt(document.getElementById('mp-cantidad-bovinas').value, 10) || 0;
-  const contenedor = document.getElementById('mp-pesos-container');
+  const cantEl = document.getElementById('mp-cantidad-bovinas');
+  if (!cantEl) return;
+  let contenedor = document.getElementById('mp-pesos-container');
+  if (!contenedor) {
+    contenedor = document.createElement('div');
+    contenedor.id = 'mp-pesos-container';
+    cantEl.insertAdjacentElement('afterend', contenedor);
+  }
+  const cantidad = parseInt(cantEl.value, 10) || 0;
   let html = '<label class="field-label">Peso de cada bovina (kg)</label><div class="flex gap-2 flex-wrap">';
   for (let i = 0; i < cantidad; i++) {
     html += `<input type="number" class="input-classic mp-peso-input" placeholder="Bovina ${i + 1}" style="width:110px;" min="0" step="0.1" />`;
