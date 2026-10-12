@@ -1,5 +1,21 @@
 <div class="module-title">Mi Avance — Sellador</div>
-<div class="module-subtitle">Consulta tu propio historial de producción.</div>
+<div class="module-subtitle">Tu producción del mes.</div>
+
+<style>
+  .ma-kpis { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:12px; }
+  @media (min-width:768px){ .ma-kpis { grid-template-columns:repeat(3,1fr); } }
+  .ma-kpi { border:1px solid #b9b9b9; background:#fff; padding:10px 12px; border-radius:4px; }
+  .ma-kpi .lbl { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#666; }
+  .ma-kpi .val { font-size:24px; font-weight:bold; line-height:1.2; margin-top:2px; }
+  .ma-kpi .sub { font-size:11px; color:#777; margin-top:2px; }
+  .ma-mes { display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:12px; }
+  .ma-mes button { min-width:34px; }
+  .ma-mes-label { font-size:16px; font-weight:bold; min-width:150px; text-align:center; text-transform:capitalize; }
+  .ma-chart { display:flex; align-items:flex-end; gap:2px; height:90px; padding:6px 4px 0; border:1px solid #b9b9b9; background:#fff; border-radius:4px; }
+  .ma-bar { flex:1; background:#2a5db0; min-height:2px; border-radius:2px 2px 0 0; position:relative; }
+  .ma-bar.vacio { background:#ddd; }
+  .ma-chart-eje { display:flex; justify-content:space-between; font-size:10px; color:#777; padding:2px 4px 0; margin-bottom:12px; }
+</style>
 
 <div id="mi-avance-selector" class="quick-panel show">
   <div class="quick-panel-header">
@@ -32,25 +48,49 @@
     <a id="mi-avance-cambiar" style="cursor:pointer; color:#2a5db0; text-decoration:underline;">cambiar</a>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3" style="text-align:center;">
-    <div class="groupbox">
-      <div style="font-size:12px;">Corridas realizadas</div>
-      <div id="mi-avance-total-corridas" style="font-size:22px; font-weight:bold;">0</div>
+  <div class="ma-mes">
+    <button class="btn-classic" id="mi-avance-mes-prev">‹</button>
+    <div class="ma-mes-label" id="mi-avance-mes-label">—</div>
+    <button class="btn-classic" id="mi-avance-mes-next">›</button>
+    <button class="btn-classic" id="mi-avance-mes-hoy">Este mes</button>
+  </div>
+
+  <div class="ma-kpis">
+    <div class="ma-kpi">
+      <div class="lbl">Bolsas selladas</div>
+      <div class="val" id="mi-avance-total-bolsas">0</div>
+      <div class="sub">millares × 1000</div>
     </div>
-    <div class="groupbox">
-      <div style="font-size:12px;">Kg producidos (total)</div>
-      <div id="mi-avance-total-kg" style="font-size:22px; font-weight:bold;">0</div>
+    <div class="ma-kpi">
+      <div class="lbl">Kilos usados</div>
+      <div class="val" id="mi-avance-total-kg">0</div>
+      <div class="sub">peso manga − tuco</div>
     </div>
-        <div class="groupbox">
-      <div style="font-size:12px;">Diferencia total (kg)</div>
-      <div id="mi-avance-total-dif" style="font-size:22px; font-weight:bold;">0.00</div>
-      <div id="mi-avance-total-dif-txt" style="font-size:12px;"></div>
+    <div class="ma-kpi">
+      <div class="lbl">Corridas</div>
+      <div class="val" id="mi-avance-total-corridas">0</div>
+      <div class="sub" id="mi-avance-prom">—</div>
     </div>
-    <div class="groupbox">
-      <div style="font-size:12px;">Última corrida</div>
-      <div id="mi-avance-ultima" style="font-size:14px; font-weight:bold;">—</div>
+    <div class="ma-kpi">
+      <div class="lbl">Plástico del mes</div>
+      <div class="val" id="mi-avance-total-dif">—</div>
+      <div class="sub" id="mi-avance-total-dif-txt">—</div>
+    </div>
+    <div class="ma-kpi">
+      <div class="lbl">Merma (tuco)</div>
+      <div class="val" id="mi-avance-merma">—</div>
+      <div class="sub" id="mi-avance-merma-sub">—</div>
+    </div>
+    <div class="ma-kpi">
+      <div class="lbl">Última corrida</div>
+      <div class="val" id="mi-avance-ultima" style="font-size:15px; margin-top:8px;">—</div>
+      <div class="sub" id="mi-avance-ultima-sub">&nbsp;</div>
     </div>
   </div>
+
+  <div class="field-label" style="margin-bottom:4px;">Bolsas selladas por día</div>
+  <div class="ma-chart" id="mi-avance-chart"></div>
+  <div class="ma-chart-eje"><span>1</span><span id="mi-avance-chart-fin">30</span></div>
 
   <div class="table-scroll">
     <table class="data-grid" id="mi-avance-table">
@@ -58,7 +98,8 @@
         <tr>
           <th>Fecha</th><th>ID Manga</th><th>Proveedor</th><th>Litros</th>
           <th>Ancho</th><th>Largo</th><th>Espesor</th><th>Millares</th>
-          <th>Peso utilizado</th><th>Fórmula (kg)</th><th>Real (kg)</th><th>Diferencia (kg)</th><th>Estado</th>
+          <th>Peso utilizado</th><th>Fórmula (kg)</th><th>Real (kg)</th>
+          <th>Diferencia (kg)</th><th>Estado</th>
         </tr>
       </thead>
       <tbody id="mi-avance-tbody"><tr><td colspan="13">Cargando…</td></tr></tbody>
