@@ -13,6 +13,32 @@ window.initPlantaModule = function () {
     }
     cargarPlanta();
   }, 30000);
+  function cargarDiferenciaPlanta() {
+  fetch(`${API_URL}?action=produccion&_=${Date.now()}`, { cache: 'no-store' })
+    .then((r) => r.json())
+    .then((data) => {
+      const tbody = document.getElementById('planta-dif-tbody');
+      if (!tbody) return;
+      const mapa = {};
+      data.forEach((p) => {
+        const c = calcDiferenciaCorrida(p);
+        if (!c) return;
+        const k = (p.operario || '—').toUpperCase();
+        const m = mapa[k] || (mapa[k] = { corridas: 0, teorico: 0, real: 0, dif: 0 });
+        m.corridas++; m.teorico += c.teorico; m.real += c.real; m.dif += c.dif;
+      });
+      const filas = Object.entries(mapa).sort((a, b) => b[1].dif - a[1].dif);
+      tbody.innerHTML = filas.length
+        ? filas.map(([n, m]) => `<tr>
+            <td>${n}</td><td>${m.corridas}</td><td>${m.real.toFixed(1)}</td><td>${m.teorico.toFixed(1)}</td>
+            <td>${formatDif(m.dif)}</td><td>${m.dif >= 0 ? 'A favor' : 'En contra'}</td></tr>`).join('')
+        : '<tr><td colspan="6">Sin corridas cerradas con datos completos.</td></tr>';
+    })
+    .catch((err) => {
+      const tbody = document.getElementById('planta-dif-tbody');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="6">Error: ${err.message}</td></tr>`;
+    });
+}
 };
 
 function cargarPlanta() {
