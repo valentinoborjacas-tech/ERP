@@ -26,6 +26,7 @@ window.initOperarioModule = function () {
   document.getElementById('op-peso-inicio').addEventListener('input', calcularCierre);
   document.getElementById('op-peso-tuco').addEventListener('input', calcularCierre);
   document.getElementById('op-terminar').addEventListener('click', terminarTarea);
+  document.getElementById('op-soltar').addEventListener('click', soltarTarea);
 
   const guardado = localStorage.getItem('mi_avance_operario');
   if (guardado) mostrarOperario(guardado);
@@ -224,4 +225,31 @@ function actualizarPreviewBolsas() {
   const bolsas = Math.round(Number(document.getElementById('op-millares').value) || 0);
   const el = document.getElementById('op-bolsas-preview');
   if (el) el.textContent = bolsas > 0 ? `= ${bolsas.toLocaleString('es-PE')} bolsas (${(bolsas / 1000).toFixed(3).replace(/\.?0+$/, '')} millares)` : '\u00A0';
+}
+function soltarTarea() {
+  if (!opTarea) return;
+  if (!confirm(`¿Soltar la manga ${opTarea.idManga}?\n\nSe cancela esta tarea SIN registrar producción y la manga queda disponible para otro.\n\nSi ya sellaste algo, NO la sueltes: usa "Terminar y liberar" con estado "No terminado".`)) return;
+
+  const btn = document.getElementById('op-soltar');
+  btn.disabled = true; btn.textContent = 'Soltando…';
+
+  fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'soltar_produccion',
+      id_produccion: opTarea.idProduccion,
+      operario: opNombre
+    })
+  })
+    .then((r) => r.json())
+    .then((res) => {
+      if (res.ok) {
+        alert(`Manga ${res.idManga} liberada. Ya puedes elegir otra.`);
+        refrescarTarea();
+      } else {
+        alert('Error: ' + res.error);
+      }
+    })
+    .catch((err) => alert('Error de conexión: ' + err.message))
+    .finally(() => { btn.disabled = false; btn.textContent = '↩ Soltar manga (cancelar sin producir)'; });
 }
