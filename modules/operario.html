@@ -29,9 +29,10 @@
   <div id="op-panel-iniciar" class="groupbox" style="margin-bottom:14px;">
     <span class="groupbox-label">Iniciar manga</span>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-      <div>
+           <div style="position:relative;">
         <label class="field-label">Código de material</label>
-        <input class="input-classic" id="op-codigo" placeholder="Ej. A2020SFB" autocomplete="off" />
+        <input class="input-classic" id="op-codigo" placeholder="Ej. N27" autocomplete="off" autocapitalize="characters" />
+        <div id="op-sugerencias" style="display:none; position:absolute; left:0; right:0; top:100%; z-index:30; background:#fff; border:1px solid #888; box-shadow:0 4px 10px rgba(0,0,0,.25); max-height:280px; overflow-y:auto;"></div>
       </div>
       <div>
         <label class="field-label">Manga disponible</label>
