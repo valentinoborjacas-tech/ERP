@@ -155,12 +155,15 @@ function iniciarTarea() {
 
 function terminarTarea() {
   if (!opTarea) return;
-  const millares = Number(document.getElementById('op-millares').value) || 0;
+  const bolsas = Math.round(Number(document.getElementById('op-millares').value) || 0);
+  const millares = bolsas / 1000; // internamente se guarda en miles
   const inicio = Number(document.getElementById('op-peso-inicio').value) || 0;
   const tucoTxt = document.getElementById('op-peso-tuco').value;
   const tuco = Number(tucoTxt) || 0;
 
-  if (millares <= 0) { alert('Ingresa los millares producidos.'); return; }
+    if (bolsas <= 0) { alert('Ingresa la cantidad de bolsas selladas.'); return; }
+  if (bolsas < 10 && !confirm(`Pusiste solo ${bolsas} bolsas.\n\n¿Es correcto?`)) return;
+  if (bolsas >= 50000 && !confirm(`Pusiste ${bolsas.toLocaleString('es-PE')} bolsas.\n\n¿Es correcto?`)) return;
   if (inicio <= 0) { alert('Ingresa el peso de la manga.'); return; }
   if (tucoTxt === '' || tuco < 0 || tuco > inicio) { alert('El peso del tuco no es válido.'); return; }
 
@@ -216,4 +219,9 @@ function formatFechaOp(iso) {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function actualizarPreviewBolsas() {
+  const bolsas = Math.round(Number(document.getElementById('op-millares').value) || 0);
+  const el = document.getElementById('op-bolsas-preview');
+  if (el) el.textContent = bolsas > 0 ? `= ${bolsas.toLocaleString('es-PE')} bolsas (${(bolsas / 1000).toFixed(3).replace(/\.?0+$/, '')} millares)` : '\u00A0';
 }
