@@ -27,6 +27,8 @@ window.initOperarioModule = function () {
   document.getElementById('op-peso-tuco').addEventListener('input', calcularCierre);
   document.getElementById('op-terminar').addEventListener('click', terminarTarea);
   document.getElementById('op-soltar').addEventListener('click', soltarTarea);
+  document.getElementById('op-bovina').addEventListener('change', opActualizarBotonIniciar);
+  opActualizarBotonIniciar();
 
   const guardado = localStorage.getItem('mi_avance_operario');
   if (guardado) mostrarOperario(guardado);
@@ -128,6 +130,7 @@ function iniciarTarea() {
   const idManga = document.getElementById('op-bovina').value;
   if (!idManga) { alert('Selecciona una manga.'); return; }
   const opcion = document.getElementById('op-bovina').selectedOptions[0];
+    if (!confirm(`¿Iniciar la manga ${idManga}?`)) return;
 
   const btn = document.getElementById('op-iniciar');
   btn.disabled = true; btn.textContent = 'Iniciando…';
@@ -151,7 +154,7 @@ function iniciarTarea() {
       }
     })
     .catch((err) => alert('Error de conexión: ' + err.message))
-    .finally(() => { btn.disabled = false; btn.textContent = '▶ Iniciar'; });
+        .finally(() => { btn.textContent = '▶ Iniciar'; opActualizarBotonIniciar(); });
 }
 
 function terminarTarea() {
@@ -253,3 +256,11 @@ function soltarTarea() {
     .catch((err) => alert('Error de conexión: ' + err.message))
     .finally(() => { btn.disabled = false; btn.textContent = '↩ Soltar manga (cancelar sin producir)'; });
 }
+  function opActualizarBotonIniciar() {
+    const btn = document.getElementById('op-iniciar');
+    const sel = document.getElementById('op-bovina');
+    if (!btn || !sel) return;
+    const ok = !!sel.value;
+    btn.disabled = !ok;
+    btn.style.opacity = ok ? '1' : '.45';
+  }
