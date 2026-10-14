@@ -131,7 +131,7 @@ function abrirDetalleBovinas(idMaterial) {
         <td data-label="Peso ingresado">${b.pesoInicial}</td>
         <td data-label="Peso actual">${b.pesoActual}</td>
         <td data-label="Estado"><span class="badge ${clase}">${etiqueta}</span></td>
-        <td data-label="Acciones">${editable ? `<button type="button" class="btn-classic mp-edit-btn" data-id="${b.idBovina}" data-peso="${b.pesoActual}">✏️ Editar peso</button>` : ''}</td>
+        <td data-label="Acciones">${editable ? `<button type="button" class="btn-classic mp-edit-btn" data-id="${b.idBovina}" data-peso="${b.pesoActual}">✏️ Editar peso</button> <button type="button" class="btn-classic mp-del-btn" data-id="${b.idBovina}" data-peso="${b.pesoActual}" style="color:#c62828;">🗑️ Eliminar</button>` : ''}</td>
       </tr>`;
     }).join('')
   : '<tr><td colspan="8">Sin ingresos registrados.</td></tr>';
@@ -568,6 +568,7 @@ function handleMpBovinasClick(e) {
   const btn = e.target.closest('button');
   if (!btn) return;
   if (btn.classList.contains('mp-edit-btn')) return mpIniciarEdicion(btn);
+  if (btn.classList.contains('mp-del-btn')) return mpEliminarBovina(btn);
   if (btn.classList.contains('mp-edit-cancelar')) return abrirDetalleBovinas(mpDetalleActual);
   if (btn.classList.contains('mp-edit-guardar')) return mpGuardarEdicion(btn);
 }
@@ -611,4 +612,27 @@ function mpGuardarEdicion(btn) {
       return fetchMpStock().then(() => abrirDetalleBovinas(mpDetalleActual));
     })
     .catch((err) => { alert('Error de conexión: ' + err.message); btn.disabled = false; btn.textContent = '💾 Guardar'; });
+}
+function mpEliminarBovina(btn) {
+  const id = btn.dataset.id, peso = btn.dataset.peso;
+  const motivo = prompt(`¿Eliminar la manga ${id} (${peso} kg)?\n\nEscribe el motivo (ej. "ingresada por duplicado") y acepta, o cancela para no eliminar:`);
+  if (motivo === null) return;
+  if (!motivo.trim()) { alert('Escribe un motivo para eliminar.'); return; }
+
+  btn.disabled = true; btn.textContent = 'Eliminando…';
+  fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'eliminar_bovina',
+      id_bovina: id,
+      usuario: localStorage.getItem('mp_last_almacenero') || '',
+      nota: motivo.trim()
+    })
+  })
+    .then((r) => r.json())
+    .then((res) => {
+      if (!res.ok) { alert('No se pudo eliminar: ' + (res.error || 'error desconocido')); btn.disabled = false; btn.textContent = '🗑️ Eliminar'; return; }
+      return fetchMpStock().then(() => abrirDetalleBovinas(mpDetalleActual));
+    })
+    .catch((err) => { alert('Error de conexión: ' + err.message); btn.disabled = false; btn.textContent = '🗑️ Eliminar'; });
 }
