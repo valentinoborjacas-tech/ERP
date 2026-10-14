@@ -283,6 +283,10 @@ function confirmarIngresoBovinas() {
         localStorage.setItem('mp_last_proveedor', proveedorSelect);
         localStorage.setItem('mp_last_proveedor_otro', proveedorSelect === '__otro__' ? proveedor : '');
 
+        const ids = (resultado.bovinasCreadas || []).join(', ');
+        const totalKg = pesos.reduce((s, p) => s + p, 0).toFixed(1);
+        mpToast(`✔ ${pesos.length} manga${pesos.length > 1 ? 's' : ''} registrada${pesos.length > 1 ? 's' : ''}<br><span style="font-size:15px;font-weight:normal;">${mpMaterialEncontrado.ID} · ${ids} · ${totalKg} kg</span>`);
+
         document.getElementById('mp-cantidad-bovinas').value = 1;
         renderCamposPeso();
         fetchMpStock();
@@ -609,7 +613,9 @@ function mpGuardarEdicion(btn) {
     .then((r) => r.json())
     .then((res) => {
       if (!res.ok) { alert('No se pudo editar: ' + (res.error || 'error desconocido')); btn.disabled = false; btn.textContent = '💾 Guardar'; return; }
+      mpToast(`✔ ${id}: peso cambiado de ${pesoOrig} a ${nuevo} kg`);
       return fetchMpStock().then(() => abrirDetalleBovinas(mpDetalleActual));
+      
     })
     .catch((err) => { alert('Error de conexión: ' + err.message); btn.disabled = false; btn.textContent = '💾 Guardar'; });
 }
@@ -632,7 +638,22 @@ function mpEliminarBovina(btn) {
     .then((r) => r.json())
     .then((res) => {
       if (!res.ok) { alert('No se pudo eliminar: ' + (res.error || 'error desconocido')); btn.disabled = false; btn.textContent = '🗑️ Eliminar'; return; }
+      mpToast(`🗑️ Manga ${id} eliminada`);
       return fetchMpStock().then(() => abrirDetalleBovinas(mpDetalleActual));
+            
     })
     .catch((err) => { alert('Error de conexión: ' + err.message); btn.disabled = false; btn.textContent = '🗑️ Eliminar'; });
+}
+function mpToast(msg, tipo) {
+  let el = document.getElementById('mp-toast');
+  if (!el) { el = document.createElement('div'); el.id = 'mp-toast'; document.body.appendChild(el); }
+  el.style.cssText = `position:fixed; left:50%; bottom:40px; transform:translateX(-50%); z-index:10000;
+    max-width:90vw; padding:16px 24px; border-radius:8px; font-size:20px; font-weight:bold; color:#fff;
+    text-align:center; box-shadow:0 4px 16px rgba(0,0,0,.35);
+    background:${tipo === 'error' ? '#c62828' : '#1a7f37'};`;
+  el.innerHTML = msg;
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = 'none'; }, 4500);
+  try { if (navigator.vibrate) navigator.vibrate(tipo === 'error' ? [200, 100, 200] : 120); } catch (e) {}
 }
