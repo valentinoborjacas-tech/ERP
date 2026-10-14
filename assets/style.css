@@ -69,9 +69,8 @@
     width:26px; height:26px; padding:0; font-size:13px;
     display:inline-flex; align-items:center; justify-content:center;
   }
-  .input-classic{
-    border-top:1px solid var(--border-mid); border-left:1px solid var(--border-mid);
-    border-right:1px solid #fff; border-bottom:1px solid #fff;
+   .input-classic{
+    border:1px solid var(--border-mid);
     background:#fff; padding:6px 8px; font-size:13px;
     font-family: Tahoma, Arial, sans-serif; border-radius:2px; outline:none; width:100%;
   }
@@ -472,3 +471,4 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   .sidebar .nav-item .nav-label { display: inline; }
   .sidebar-overlay.open { display: block; }
 }
+  select.input-classic { -webkit-appearance: menulist; appearance: auto; background: #fff; }
