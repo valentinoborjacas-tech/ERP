@@ -2,6 +2,7 @@ let mpStockData = [];
 let prodLogData = [];
 let mpMateriales = [];
 let mpMaterialEncontrado = null;
+let mpDetalleActual = '';
 
 
 window.initMateriaprimaModule = function () {
@@ -25,8 +26,9 @@ window.initMateriaprimaModule = function () {
   document.getElementById('mp-ingreso-confirm').addEventListener('click', confirmarIngresoBovinas);
 
   document.getElementById('mp-tbody').addEventListener('click', handleMpTablaClick);
+  document.getElementById('mp-bovinas-tbody').addEventListener('click', handleMpBovinasClick);
   document.getElementById('mp-bovinas-close').addEventListener('click', () => {
-    document.getElementById('mp-bovinas-panel').classList.remove('show');
+  document.getElementById('mp-bovinas-panel').classList.remove('show');
   });
 
   
@@ -43,21 +45,21 @@ window.initMateriaprimaModule = function () {
 });
   document.getElementById('prod-bovina-select').addEventListener('change', autocompletarProveedorBovina);
   document.getElementById('mp-produccion-confirm').addEventListener('click', confirmarRegistrarProduccion);
-    document.getElementById('mp-almacenero-select').addEventListener('change', () => {
+  document.getElementById('mp-almacenero-select').addEventListener('change', () => {
     const esOtro = document.getElementById('mp-almacenero-select').value === '__otro__';
-    document.getElementById('mp-almacenero-otro').style.display = esOtro ? 'block' : 'none';
+  document.getElementById('mp-almacenero-otro').style.display = esOtro ? 'block' : 'none';
     if (esOtro) document.getElementById('mp-almacenero-otro').focus();
   });
   document.getElementById('mp-proveedor-select').addEventListener('change', () => {
     const esOtro = document.getElementById('mp-proveedor-select').value === '__otro__';
-    document.getElementById('mp-proveedor-otro').style.display = esOtro ? 'block' : 'none';
+  document.getElementById('mp-proveedor-otro').style.display = esOtro ? 'block' : 'none';
     if (esOtro) document.getElementById('mp-proveedor-otro').focus();
   });
 };
 
 
 function fetchMpStock() {
-  fetch(`${API_URL}?action=materia_prima_stock&_=${Date.now()}`, { cache: 'no-store' })
+  return fetch(`${API_URL}?action=materia_prima_stock&_=${Date.now()}`, { cache: 'no-store' })
     .then((r) => r.json())
     .then((data) => { mpStockData = data; renderMpFiltered(); })
     .catch((err) => {
@@ -91,6 +93,7 @@ function handleMpTablaClick(e) {
 
 function abrirDetalleBovinas(idMaterial) {
   const material = mpStockData.find((m) => m.id === idMaterial);
+  mpDetalleActual = idMaterial;
 
   document.getElementById('mp-bovinas-material').textContent = idMaterial;
   document.getElementById('mp-bovinas-descripcion').textContent = material ? material.descripcion : '';
@@ -105,7 +108,7 @@ function abrirDetalleBovinas(idMaterial) {
 
   const tbodyIngresos = document.getElementById('mp-bovinas-tbody');
   const tbodyProduccion = document.getElementById('mp-bovinas-produccion-tbody');
-  tbodyIngresos.innerHTML = '<tr><td colspan="7">Cargando…</td></tr>';
+  tbodyIngresos.innerHTML = '<tr><td colspan="8">Cargando…</td></tr>';
   tbodyProduccion.innerHTML = '<tr><td colspan="5">Cargando…</td></tr>';
 
   fetch(`${API_URL}?action=bovinas&id_material=${encodeURIComponent(idMaterial)}&_=${Date.now()}`, { cache: 'no-store' })
@@ -118,6 +121,7 @@ function abrirDetalleBovinas(idMaterial) {
       const producida = b.nCorridas > 0;
       const etiqueta = producida ? 'Producido' : (b.pesoActual > 0 ? 'Disponible' : 'Agotada');
       const clase = producida || b.pesoActual <= 0 ? 'badge-danger' : 'badge-ok';
+          const editable = !producida && b.estado === 'Disponible';
       return `
       <tr>
         <td data-label="Fecha">${formatFecha(b.fecha)}</td>
@@ -127,9 +131,10 @@ function abrirDetalleBovinas(idMaterial) {
         <td data-label="Peso ingresado">${b.pesoInicial}</td>
         <td data-label="Peso actual">${b.pesoActual}</td>
         <td data-label="Estado"><span class="badge ${clase}">${etiqueta}</span></td>
+        <td data-label="Acciones">${editable ? `<button type="button" class="btn-classic mp-edit-btn" data-id="${b.idBovina}" data-peso="${b.pesoActual}">✏️ Editar peso</button>` : ''}</td>
       </tr>`;
     }).join('')
-  : '<tr><td colspan="7">Sin ingresos registrados.</td></tr>';
+  : '<tr><td colspan="8">Sin ingresos registrados.</td></tr>';
 
       const produccionesDelMaterial = prodLogData.filter((p) => p.idMaterial === idMaterial);
 
@@ -557,4 +562,53 @@ async function mpImpConfirmar() {
     mpImpRender();
   } else btn.disabled = false;
   fetchMpStock();
+}
+// ===== Editar peso de una manga Disponible =====
+function handleMpBovinasClick(e) {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  if (btn.classList.contains('mp-edit-btn')) return mpIniciarEdicion(btn);
+  if (btn.classList.contains('mp-edit-cancelar')) return abrirDetalleBovinas(mpDetalleActual);
+  if (btn.classList.contains('mp-edit-guardar')) return mpGuardarEdicion(btn);
+}
+
+function mpIniciarEdicion(btn) {
+  const tr = btn.closest('tr');
+  const id = btn.dataset.id, peso = btn.dataset.peso;
+  tr.querySelector('td[data-label="Peso actual"]').innerHTML =
+    `<input type="number" class="input-classic mp-edit-input" value="${peso}" min="0" step="0.1" style="width:90px;" />`;
+  tr.querySelector('td[data-label="Acciones"]').innerHTML =
+    `<button type="button" class="btn-classic btn-primary mp-edit-guardar" data-id="${id}" data-peso="${peso}">💾 Guardar</button> ` +
+    `<button type="button" class="btn-classic mp-edit-cancelar">Cancelar</button>`;
+  const inp = tr.querySelector('.mp-edit-input');
+  inp.focus(); inp.select();
+}
+
+function mpGuardarEdicion(btn) {
+  const tr = btn.closest('tr');
+  const id = btn.dataset.id;
+  const pesoOrig = Number(btn.dataset.peso);
+  const nuevo = Number(tr.querySelector('.mp-edit-input').value);
+
+  if (!(nuevo > 0)) { alert('Ingresa un peso válido (mayor a 0).'); return; }
+  if (nuevo === pesoOrig) { abrirDetalleBovinas(mpDetalleActual); return; }
+  if (!confirm(`¿Cambiar el peso de ${id} de ${pesoOrig} kg a ${nuevo} kg?`)) return;
+
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'editar_bovina',
+      id_bovina: id,
+      peso_nuevo: nuevo,
+      usuario: localStorage.getItem('mp_last_almacenero') || '',
+      nota: 'Edición desde Materia Prima'
+    })
+  })
+    .then((r) => r.json())
+    .then((res) => {
+      if (!res.ok) { alert('No se pudo editar: ' + (res.error || 'error desconocido')); btn.disabled = false; btn.textContent = '💾 Guardar'; return; }
+      return fetchMpStock().then(() => abrirDetalleBovinas(mpDetalleActual));
+    })
+    .catch((err) => { alert('Error de conexión: ' + err.message); btn.disabled = false; btn.textContent = '💾 Guardar'; });
 }
