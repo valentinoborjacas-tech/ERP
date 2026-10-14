@@ -1,7 +1,10 @@
 const MERMA_MAX_PCT = 5; // ← ajusta: % máximo de merma (tuco / peso manga) antes de marcar en rojo
 
+
 let opNombre = '';
+let opMateriales = [];
 let opTarea = null;
+
 
 window.initOperarioModule = function () {
   document.getElementById('op-select').addEventListener('change', () => {
@@ -21,7 +24,10 @@ window.initOperarioModule = function () {
     document.getElementById('op-main').style.display = 'none';
     document.getElementById('op-selector').style.display = '';
   });
-  document.getElementById('op-codigo').addEventListener('keyup', cargarBovinasOp);
+    document.getElementById('op-codigo').addEventListener('input', opSugerir);
+  document.getElementById('op-codigo').addEventListener('blur', () => setTimeout(() => {
+    const b = document.getElementById('op-sugerencias'); if (b) b.style.display = 'none';
+  }, 250));
   document.getElementById('op-iniciar').addEventListener('click', iniciarTarea);
   document.getElementById('op-peso-inicio').addEventListener('input', calcularCierre);
   document.getElementById('op-peso-tuco').addEventListener('input', calcularCierre);
@@ -57,7 +63,7 @@ function refrescarTarea() {
       panelIniciar.style.display = opTarea ? 'none' : 'block';
       panelActiva.style.display = opTarea ? 'block' : 'none';
       if (opTarea) renderTareaActiva(opTarea);
-      else cargarBovinasOp();
+            else { cargarBovinasOp(); opCargarMateriales(); }
     })
     .catch((err) => alert('Error al cargar: ' + err.message));
 }
@@ -264,3 +270,48 @@ function soltarTarea() {
     btn.disabled = !ok;
     btn.style.opacity = ok ? '1' : '.45';
   }
+function opCargarMateriales() {
+  return fetch(`${API_URL}?action=materia_prima_stock&_=${Date.now()}`, { cache: 'no-store' })
+    .then((r) => r.json())
+    .then((d) => { opMateriales = (Array.isArray(d) ? d : []).filter((m) => Number(m.nBovinas) > 0 && Number(m.stockActual) > 0); })
+    .catch(() => { opMateriales = []; });
+}
+
+function opSugerir() {
+  const input = document.getElementById('op-codigo');
+  const box = document.getElementById('op-sugerencias');
+  if (!input || !box) return;
+  const q = input.value.trim().toUpperCase();
+  box.style.display = 'none';
+  box.innerHTML = '';
+  if (!q) { cargarBovinasOp(); return; }
+
+  const exacto = opMateriales.find((m) => String(m.id).toUpperCase() === q);
+  if (exacto) { cargarBovinasOp(); return; }
+
+  const lista = opMateriales
+    .filter((m) => String(m.id).toUpperCase().includes(q) || String(m.descripcion || '').toUpperCase().includes(q))
+    .sort((a, b) => (String(b.id).toUpperCase().startsWith(q) ? 1 : 0) - (String(a.id).toUpperCase().startsWith(q) ? 1 : 0))
+    .slice(0, 8);
+
+  if (!lista.length) {
+    box.innerHTML = '<div style="padding:10px; color:#777;">Sin materiales con mangas disponibles</div>';
+    box.style.display = 'block';
+    return;
+  }
+  box.innerHTML = lista.map((m) =>
+    `<div class="op-sug-item" data-id="${m.id}" style="padding:12px 10px; border-bottom:1px solid #ddd; cursor:pointer; font-size:15px;">
+       <b>${m.id}</b> — ${m.descripcion || ''} <span style="color:#1a7f37;">· ${m.nBovinas} manga${m.nBovinas > 1 ? 's' : ''}</span>
+     </div>`).join('');
+  box.style.display = 'block';
+  box.querySelectorAll('.op-sug-item').forEach((el) => {
+    el.addEventListener('mousedown', (e) => { e.preventDefault(); opElegirMaterial(el.dataset.id); });
+    el.addEventListener('touchend', (e) => { e.preventDefault(); opElegirMaterial(el.dataset.id); });
+  });
+}
+
+function opElegirMaterial(id) {
+  document.getElementById('op-codigo').value = id;
+  document.getElementById('op-sugerencias').style.display = 'none';
+  cargarBovinasOp();
+}
