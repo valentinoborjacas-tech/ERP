@@ -24,7 +24,8 @@ document.querySelectorAll('.nav-item').forEach((item) => {
     document.querySelectorAll('.nav-item').forEach((i) => i.classList.remove('active'));
     item.classList.add('active');
 
-    const mod = item.dataset.module;
+        const mod = item.dataset.module;
+    localStorage.setItem('modulo_activo', mod);
     document.getElementById('crumb-module').textContent = moduleNames[mod];
     loadModule(mod);
     closeSidebar(); // en móvil, se cierra el menú al elegir un módulo
@@ -105,7 +106,9 @@ function applyProfile(key) {
   const etiqueta = document.getElementById('perfil-actual-label');
   if (etiqueta) etiqueta.textContent = `${p.icon} Perfil: ${p.label}`;
 
-     const primero = document.querySelector(`.nav-item[data-module="${p.modules[0]}"]`);
+       const moduloGuardado = localStorage.getItem('modulo_activo');
+  const destino = (moduloGuardado && p.modules.includes(moduloGuardado)) ? moduloGuardado : p.modules[0];
+  const primero = document.querySelector(`.nav-item[data-module="${destino}"]`);
   if (primero) {
     primero.click();
   } else {
@@ -149,6 +152,7 @@ perfilBox.innerHTML = `
 sidebarEl.appendChild(perfilBox);
 document.getElementById('perfil-cambiar').addEventListener('click', () => {
   localStorage.removeItem('perfil_activo');
+  localStorage.removeItem('modulo_activo');
   mostrarSelectorPerfil();
 });
 
