@@ -154,7 +154,14 @@ function iniciarTarea() {
     .then((res) => {
       if (res.ok) {
         localStorage.setItem('prod_last_codigo', document.getElementById('op-codigo').value.trim());
-        refrescarTarea();
+                opTarea = {
+          idProduccion: res.idProduccion, idManga: idManga,
+          idMaterial: document.getElementById('op-codigo').value.trim().toUpperCase(),
+          fecha: new Date().toISOString(), estadoProceso: 'En proceso', operario: opNombre
+        };
+        document.getElementById('op-panel-iniciar').style.display = 'none';
+        document.getElementById('op-panel-activa').style.display = 'block';
+        renderTareaActiva(opTarea);
       } else {
         alert('Error: ' + res.error);
       }
@@ -215,7 +222,12 @@ function terminarTarea() {
         localStorage.setItem('prod_last_largo', largo);
         localStorage.setItem('prod_last_espesor', espesor);
         alert(`Tarea cerrada y bobina liberada.\nPeso utilizado: ${res.pesoUtilizado.toFixed(2)} kg\nMerma: ${res.merma.toFixed(2)} kg (${res.mermaPct.toFixed(1)}%)`);
-        refrescarTarea();
+                opTarea = null;
+        document.getElementById('op-panel-activa').style.display = 'none';
+        document.getElementById('op-panel-iniciar').style.display = 'block';
+        document.getElementById('op-codigo').value = '';
+        cargarBovinasOp();
+        opCargarMateriales();
       } else {
         alert('Error: ' + res.error);
       }
