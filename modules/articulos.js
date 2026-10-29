@@ -44,7 +44,7 @@ function fetchArticulos() {
       renderArticulosFiltered();
     })
     .catch((err) => {
-      document.getElementById('articulos-tbody').innerHTML = `<tr><td colspan="8">Error: ${err.message}</td></tr>`;
+      document.getElementById('articulos-tbody').innerHTML = `<tr><td colspan="9">Error: ${err.message}</td></tr>`;
     });
 }
 
@@ -57,7 +57,7 @@ function renderArticulosFiltered() {
 
   document.getElementById('articulos-tbody').innerHTML = filtrados.length
     ? filtrados.map(articuloRowHtml).join('')
-    : `<tr><td colspan="8">No se encontraron artículos.</td></tr>`;
+    : `<tr><td colspan="9">No se encontraron artículos.</td></tr>`;
 }
 
 function articuloRowHtml(a) {

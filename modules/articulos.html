@@ -22,13 +22,12 @@
     <div class="md:col-span-2"><label class="field-label">Descripción <span class="required-mark">*</span></label><input class="input-classic" id="na-descripcion" /></div>
 
     <div><label class="field-label">Litraje</label><input class="input-classic" id="na-litraje" /></div>
-    <div><label class="field-label">Color</label><input class="input-classic" id="na-color" />
-    </div><label class="field-label">C/F</label><select class="input-classic" id="na-cf">
-    <option value="">—</option>
-    <option value="Con fuelle">Con fuelle</option>
-    <option value="Sin fuelle">Sin fuelle</option>
-  </select>
-</div>
+    <div><label class="field-label">Color</label><input class="input-classic" id="na-color" /></div>
+    <div><label class="field-label">C/F</label><select class="input-classic" id="na-cf">
+      <option value="">—</option>
+      <option value="Con fuelle">Con fuelle</option>
+      <option value="Sin fuelle">Sin fuelle</option>
+    </select></div>
     <div><label class="field-label">Presentación</label><input class="input-classic" id="na-presentacion" /></div>
 
     <div><label class="field-label">Ancho</label><input class="input-classic" id="na-ancho" /></div>
@@ -49,6 +48,11 @@
     <div><label class="field-label">Empresa</label><input class="input-classic" id="na-empresa" /></div>
     <div><label class="field-label">Cliente</label><input class="input-classic" id="na-cliente" /></div>
   </div>
+  <div class="flex justify-end gap-2 mt-3">
+    <button class="btn-classic btn-primary" id="new-article-confirm">✔ Guardar artículo</button>
+  </div>
+</div>
+
 <div class="quick-panel" id="report-panel">
   <div class="quick-panel-header">
     <span class="quick-panel-title">Generar reporte de stock</span>
@@ -126,11 +130,6 @@
   </div>
 </div>
 
-  <div class="flex justify-end gap-2 mt-3">
-    <button class="btn-classic btn-primary" id="new-article-confirm">✔ Guardar artículo</button>
-  </div>
-</div>
-
 <!-- Panel de historial de movimientos de un producto -->
 <div class="quick-panel" id="movements-panel">
   <div class="quick-panel-header">
@@ -152,10 +151,10 @@
 <div class="table-scroll">
   <table class="data-grid" id="articulos-table">
     <thead>
-      <tr><th>ID</th><th>Descripción</th><th>Color</th><th>C/F</th><th>Stock mín.</th><th>Stock máx.</th><th>Estado</th><th style="width:110px;">Acciones</th></tr>
+      <tr><th>ID</th><th>Descripción</th><th>Color</th><th>C/F</th><th>Litraje</th><th>Stock mín.</th><th>Stock máx.</th><th>Estado</th><th style="width:110px;">Acciones</th></tr>
     </thead>
     <tbody id="articulos-tbody">
-      <tr><td colspan="8">Cargando…</td></tr>
+      <tr><td colspan="9">Cargando…</td></tr>
     </tbody>
   </table>
 </div>

@@ -506,4 +506,25 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
 /* Tablet (vertical u horizontal): el stock por ubicación ya se ve en el selector, se oculta la columna total */
 @media (pointer: coarse) and (max-width: 1100px){
   .col-disponible{ display:none; }
+
+  /* Stock: se dejan a la vista ID, Descripción, Cliente, Ubicación, Disponible, Estado y Acciones.
+     Litraje, Color, C/F, medidas, Empresa y Almacén ya van resumidos en la descripción. */
+  #stock-table th:nth-child(3), #stock-table td:nth-child(3),
+  #stock-table th:nth-child(4), #stock-table td:nth-child(4),
+  #stock-table th:nth-child(5), #stock-table td:nth-child(5),
+  #stock-table th:nth-child(6), #stock-table td:nth-child(6),
+  #stock-table th:nth-child(7), #stock-table td:nth-child(7),
+  #stock-table th:nth-child(8), #stock-table td:nth-child(8),
+  #stock-table th:nth-child(9), #stock-table td:nth-child(9),
+  #stock-table th:nth-child(12), #stock-table td:nth-child(12){ display:none; }
+
+  /* Artículos: Color y C/F ya van en la descripción */
+  #articulos-table th:nth-child(3), #articulos-table td:nth-child(3),
+  #articulos-table th:nth-child(4), #articulos-table td:nth-child(4){ display:none; }
+}
+/* Tablet: las tarjetas de totales de Stock pasan arriba de la tabla, en una fila */
+@media (pointer: coarse) and (max-width: 1100px){
+  .table-with-sidebar{ flex-direction:column-reverse; }
+  .metrics-sidebar{ width:100%; flex-direction:row; }
+  .metrics-sidebar .metric-card{ flex:1; }
 }
