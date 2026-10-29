@@ -125,7 +125,7 @@ function cargarBovinasOp() {
       const disp = data.filter((b) => Number(b.pesoActual) > 0 && b.estado !== 'En proceso');
       select.innerHTML = disp.length
         ? '<option value="">Selecciona una manga...</option>' + disp.map((b) =>
-            `<option value="${b.idBovina}" data-proveedor="${b.proveedor}">${b.idBovina} — ${Number(b.pesoActual).toFixed(1)} kg (${b.proveedor || 'sin proveedor'})</option>`
+            `<option value="${b.idBovina}" data-proveedor="${b.proveedor}">${b.idBovina} — ${Number(b.pesoActual).toFixed(1)} kg · ${b.zona || 'sin zona'} (${b.proveedor || 'sin proveedor'})</option>`
           ).join('')
         : '<option value="">Sin mangas disponibles para este material</option>';
     })
