@@ -76,9 +76,10 @@ function renderOrdenesFiltered() {
 }
 
 function ordenRowHtml(o) {
-  const accion = o.estado === 'Pendiente'
-    ? `<button class="btn-classic" style="padding:3px 8px; font-size:11.5px;" data-action="preparar" data-numero="${o.numero}">📦 Preparar</button>`
-    : `<span class="field-help" style="margin:0;">Procesada</span>`;
+  // Una orden despachada en parte sigue abierta para despachar lo que falta
+  const accion = o.estado === 'Despachada'
+    ? `<span class="field-help" style="margin:0;">Completada</span>`
+    : `<button class="btn-classic" style="padding:3px 8px; font-size:11.5px;" data-action="preparar" data-numero="${o.numero}">📦 ${o.estado === 'Pendiente' ? 'Preparar' : 'Despachar lo que falta'}</button>`;
 
   return `
     <tr>
@@ -204,7 +205,7 @@ function abrirDespacho(numero) {
   document.getElementById('dispatch-panel-numero').textContent = numero;
   document.getElementById('dispatch-panel').classList.add('show');
   document.getElementById('dispatch-panel').dataset.numero = numero;
-  document.getElementById('dispatch-tbody').innerHTML = `<tr><td colspan="6">Cargando…</td></tr>`;
+  document.getElementById('dispatch-tbody').innerHTML = `<tr><td colspan="8">Cargando…</td></tr>`;
 
   Promise.all([
     fetch(`${API_URL}?action=orden_detalle&numero=${encodeURIComponent(numero)}&_=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json()),
@@ -214,21 +215,42 @@ function abrirDespacho(numero) {
 
 function renderDespachoTabla(detalle, stock) {
   document.getElementById('dispatch-tbody').innerHTML = detalle.map((linea) => {
-    const ubicacionesDisponibles = stock.filter((s) => s.id === linea.idArticulo && s.ubicacion !== 'Sin ubicar');
+    const despachado = Number(linea.cantidadDespachada) || 0;
+    const pendiente = Math.max((Number(linea.cantidadSolicitada) || 0) - despachado, 0);
+
+    // Producto ya completo: se muestra, pero no se puede volver a despachar
+    if (pendiente <= 0) {
+      return `
+      <tr style="color:#888;">
+        <td>${linea.idArticulo}</td>
+        <td>${linea.descripcion}</td>
+        <td>${linea.cantidadSolicitada}</td>
+        <td>${despachado}</td>
+        <td>0</td>
+        <td>—</td>
+        <td colspan="2"><span class="badge badge-ok">Completo</span></td>
+      </tr>`;
+    }
+
+    // IDs como texto: el stock puede venir como número (22) y el detalle como texto ("22")
+    const ubicacionesDisponibles = stock.filter((s) => String(s.id) === String(linea.idArticulo) && s.ubicacion !== 'Sin ubicar' && s.disponible > 0);
     const totalDisponible = ubicacionesDisponibles.reduce((sum, u) => sum + u.disponible, 0);
 
     const opcionesUbicacion = ubicacionesDisponibles.length
       ? ubicacionesDisponibles.map((u) => `<option value="${u.ubicacion}">${u.ubicacion} (${u.disponible} disp.)</option>`).join('')
       : `<option value="">Sin ubicación con stock</option>`;
+    const sugerido = Math.min(pendiente, ubicacionesDisponibles.length ? ubicacionesDisponibles[0].disponible : 0);
 
     return `
       <tr data-id="${linea.idArticulo}" data-descripcion="${linea.descripcion}">
         <td>${linea.idArticulo}</td>
         <td>${linea.descripcion}</td>
         <td>${linea.cantidadSolicitada}</td>
-        <td>${totalDisponible}${totalDisponible < linea.cantidadSolicitada ? ' ⚠️' : ''}</td>
+        <td>${despachado || '—'}</td>
+        <td><strong>${pendiente}</strong></td>
+        <td>${totalDisponible}${totalDisponible < pendiente ? ' ⚠️' : ''}</td>
         <td><select class="input-classic disp-ubicacion">${opcionesUbicacion}</select></td>
-        <td><input type="number" class="input-classic disp-cantidad" value="${Math.min(linea.cantidadSolicitada, totalDisponible)}" min="0" style="width:80px;" /></td>
+        <td><input type="number" class="input-classic disp-cantidad" value="${sugerido}" min="0" max="${pendiente}" style="width:80px;" /></td>
       </tr>`;
   }).join('');
 }
@@ -237,7 +259,7 @@ function confirmarDespacho() {
   const numero = document.getElementById('dispatch-panel').dataset.numero;
   const lineas = [];
 
-  document.querySelectorAll('#dispatch-tbody tr').forEach((fila) => {
+  document.querySelectorAll('#dispatch-tbody tr[data-id]').forEach((fila) => {
     const cantidad = parseInt(fila.querySelector('.disp-cantidad').value, 10) || 0;
     if (cantidad <= 0) return;
     lineas.push({
@@ -262,7 +284,7 @@ function confirmarDespacho() {
     .then((resultado) => {
       if (resultado.ok) {
         document.getElementById('dispatch-panel').classList.remove('show');
-        mostrarGuia(numero, resultado.guia);
+        mostrarGuia(numero, resultado.guia, resultado.idDespacho, resultado.estado);
         fetchOrdenes();
       } else {
         alert('Error: ' + resultado.error);
@@ -276,9 +298,10 @@ function confirmarDespacho() {
 }
 
 // ---------- Guía imprimible ----------
-function mostrarGuia(numero, guia) {
+function mostrarGuia(numero, guia, idDespacho, estado) {
   const orden = ordenesData.find((o) => o.numero === numero);
-  document.getElementById('guia-numero').textContent = numero;
+  document.getElementById('guia-numero').textContent =
+    (idDespacho ? idDespacho + ' · ' : '') + 'Orden ' + numero + (estado ? ' (' + estado + ')' : '');
   document.getElementById('guia-fecha').textContent = new Date().toLocaleString();
   document.getElementById('guia-solicitante').textContent = 'Solicitante: ' + (orden ? orden.solicitante : '');
   document.getElementById('guia-tbody').innerHTML = guia.map((g) => `
