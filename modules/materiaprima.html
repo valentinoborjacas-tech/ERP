@@ -51,7 +51,17 @@
         <option value="HUAMANI">HUAMANI</option>
         <option value="__otro__">Otro (escribir nombre)...</option>
       </select>
-      <input class="input-classic" id="mp-proveedor-otro" placeholder="Escribe el proveedor" style="margin-top:6px; display:none;" />
+          <input class="input-classic" id="mp-proveedor-otro" placeholder="Escribe el proveedor" style="margin-top:6px; display:none;" />
+    </div>
+    <div>
+      <label class="field-label">Zona <span class="required-mark">*</span></label>
+      <select class="input-classic" id="mp-zona-select">
+        <option value="">— Selecciona —</option>
+        <option value="Zona 1">Zona 1</option>
+        <option value="Zona 2">Zona 2</option>
+        <option value="Zona 3">Zona 3</option>
+        <option value="Zona 4">Zona 4</option>
+      </select>
     </div>
   </div>
   <div class="flex justify-end gap-2 mt-3">
@@ -74,7 +84,11 @@
       </select></div>
     <div><label class="field-label">Proveedor</label><br>
       <select id="mp-imp-proveedor" class="input-classic">
-        <option value="">— (opcional) —</option><option>GIO PLAST</option><option>ELVIS</option><option>HUAMANI</option>
+               <option value="">— (opcional) —</option><option>GIO PLAST</option><option>ELVIS</option><option>HUAMANI</option>
+      </select></div>
+    <div><label class="field-label">Zona <span class="required-mark">*</span></label><br>
+      <select id="mp-imp-zona" class="input-classic">
+        <option value="">— Selecciona —</option><option>Zona 1</option><option>Zona 2</option><option>Zona 3</option><option>Zona 4</option>
       </select></div>
     <button type="button" id="mp-imp-plantilla" class="btn-classic">⬇ Descargar plantilla</button>
   </div>
@@ -200,10 +214,17 @@
     <div id="mp-resumen-stock-kilos" style="font-size:24px; font-weight:bold;">0</div>
   </div>
 
-  <div style="font-weight:bold; margin:6px 0;">Ingresos (<span id="mp-ingresos-count">0</span> mangas)</div>
+    <div style="font-weight:bold; margin:6px 0;">Ingresos (<span id="mp-ingresos-count">0</span> mangas)</div>
+  <div id="mp-zona-bar" style="display:none; margin:6px 0 10px; gap:8px; flex-wrap:wrap; align-items:center;">
+    <span id="mp-sin-zona-txt" style="font-size:13px; color:#c62828; font-weight:bold;"></span>
+    <select class="input-classic" id="mp-asig-zona" style="width:auto;">
+      <option value="">— Zona —</option><option>Zona 1</option><option>Zona 2</option><option>Zona 3</option><option>Zona 4</option>
+    </select>
+    <button type="button" class="btn-classic btn-primary" id="mp-asig-zona-btn">📍 Asignar zona a las que no tienen</button>
+  </div>
   <div class="table-scroll" style="max-height:220px;">
     <table class="data-grid">
-      <thead><tr><th>Fecha</th><th>ID Bovina</th><th>Almacenero</th><th>Proveedor</th><th>Peso ingresado</th><th>Peso actual</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <thead><tr><th>Fecha</th><th>ID Bovina</th><th>Almacenero</th><th>Proveedor</th><th>Zona</th><th>Peso ingresado</th>><th>Peso actual</th><th>Estado</th><th>Acciones</th></tr></thead>
       <tbody id="mp-bovinas-tbody"></tbody>
     </table>
   </div>
@@ -220,9 +241,9 @@
 <div class="table-scroll">
   <table class="data-grid" id="mp-table">
     <thead>
-      <tr><th>ID de bovina</th><th>Descripción</th><th>N° Bovinas</th><th>Kg ingresados</th><th>Kg consumidos</th><th>Stock actual (kg)</th></tr>
+      <tr><th>ID de bovina</th><th>Descripción</th><th>N° Bovinas</th><th>Kg ingresados</th><th>Kg consumidos</th><th>Stock actual (kg)</th><th>Zonas</th></tr>
     </thead>
-    <tbody id="mp-tbody"><tr><td colspan="6">Cargando…</td></tr></tbody>
+    <tbody id="mp-tbody"><tr><td colspan="7">Cargando…</td></tr></tbody>
   </table>
 </div>
 
