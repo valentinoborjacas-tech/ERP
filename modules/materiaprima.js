@@ -18,8 +18,10 @@ window.initMateriaprimaModule = function () {
   _on('mp-imp-file', 'change', mpImpManejarArchivo);
   _on('mp-imp-confirmar', 'click', mpImpConfirmar);
   _on('mp-imp-plantilla', 'click', mpImpPlantilla);
+  _on('mp-asig-zona-btn', 'click', mpAsignarZona);
   document.getElementById('mp-ingreso-close').addEventListener('click', () => {
-    document.getElementById('mp-ingreso-panel').classList.remove('show');
+      document.getElementById('mp-zona-select').value = '';
+  document.getElementById('mp-ingreso-panel').classList.add('show');
   });
   document.getElementById('mp-codigo').addEventListener('keyup', buscarMaterialPorCodigo);
   document.getElementById('mp-cantidad-bovinas').addEventListener('input', renderCamposPeso);
@@ -80,9 +82,10 @@ function renderMpFiltered() {
           <td data-label="N° Bovinas">${m.nBovinas}</td>
           <td data-label="Kg ingresados">${m.kgIngresados.toFixed(1)}</td>
           <td data-label="Kg consumidos">${m.kgConsumidos.toFixed(1)}</td>
-          <td data-label="Stock actual (kg)" style="font-weight:bold;">${m.stockActual.toFixed(1)}</td>
+                    <td data-label="Stock actual (kg)" style="font-weight:bold;">${m.stockActual.toFixed(1)}</td>
+          <td data-label="Zonas">${mpZonasTxt(m)}</td>
         </tr>`).join('')
-    : `<tr><td colspan="6">No se encontraron materiales.</td></tr>`;
+    : `<tr><td colspan="7">No se encontraron materiales.</td></tr>`;
 }
 
 function handleMpTablaClick(e) {
@@ -108,13 +111,18 @@ function abrirDetalleBovinas(idMaterial) {
 
   const tbodyIngresos = document.getElementById('mp-bovinas-tbody');
   const tbodyProduccion = document.getElementById('mp-bovinas-produccion-tbody');
-  tbodyIngresos.innerHTML = '<tr><td colspan="8">Cargando…</td></tr>';
+  tbodyIngresos.innerHTML = '<tr><td colspan="9">Cargando…</td></tr>';
   tbodyProduccion.innerHTML = '<tr><td colspan="5">Cargando…</td></tr>';
 
   fetch(`${API_URL}?action=bovinas&id_material=${encodeURIComponent(idMaterial)}&_=${Date.now()}`, { cache: 'no-store' })
     .then((r) => r.json())
     .then((data) => {
       document.getElementById('mp-ingresos-count').textContent = data.length;
+              const sinZonaN = data.filter((b) => Number(b.pesoActual) > 0 && !b.zona).length;
+        const barra = document.getElementById('mp-zona-bar');
+        barra.style.display = sinZonaN > 0 ? 'flex' : 'none';
+        document.getElementById('mp-sin-zona-txt').textContent = `${sinZonaN} manga${sinZonaN > 1 ? 's' : ''} sin zona`;
+        document.getElementById('mp-asig-zona').value = '';
 
      tbodyIngresos.innerHTML = data.length
   ? data.map((b) => {
@@ -127,7 +135,8 @@ function abrirDetalleBovinas(idMaterial) {
         <td data-label="Fecha">${formatFecha(b.fecha)}</td>
         <td data-label="ID Bovina">${b.idBovina}</td>
         <td data-label="Almacenero">${b.almacenero || ''}</td>
-        <td data-label="Proveedor">${b.proveedor}</td>
+                <td data-label="Proveedor">${b.proveedor}</td>
+        <td data-label="Zona">${b.zona || '<span style="color:#c62828;">Sin zona</span>'}</td>
         <td data-label="Peso ingresado">${b.pesoInicial}</td>
         <td data-label="Peso actual">${b.pesoActual}</td>
         <td data-label="Estado"><span class="badge ${clase}">${etiqueta}</span></td>
@@ -263,6 +272,9 @@ function confirmarIngresoBovinas() {
     ? document.getElementById('mp-proveedor-otro').value.trim()
     : proveedorSelect;
 
+    const zona = document.getElementById('mp-zona-select').value;
+  if (!zona) { alert('Selecciona la zona donde se guardan estas mangas.'); return; }
+
   const confirmBtn = document.getElementById('mp-ingreso-confirm');
   confirmBtn.textContent = 'Guardando…';
   confirmBtn.disabled = true;
@@ -271,8 +283,8 @@ function confirmarIngresoBovinas() {
     method: 'POST',
     body: JSON.stringify({
       action: 'ingresar_bovinas',
-      id_material: mpMaterialEncontrado.ID,
-      pesos, proveedor, almacenero
+            id_material: mpMaterialEncontrado.ID,
+      pesos, proveedor, almacenero, zona
     })
   })
     .then((r) => r.json())
@@ -531,7 +543,9 @@ function mpImpRender() {
 async function mpImpConfirmar() {
   const almacenero = document.getElementById('mp-imp-almacenero').value.trim();
   const proveedor = document.getElementById('mp-imp-proveedor').value.trim();
-  if (!almacenero) { alert('Selecciona el almacenero.'); return; }
+    if (!almacenero) { alert('Selecciona el almacenero.'); return; }
+  const zonaImp = document.getElementById('mp-imp-zona').value;
+  if (!zonaImp) { alert('Selecciona la zona.'); return; }
 
   const validas = mpImpFilas.filter((f) => f.estado === 'ok');
   if (!validas.length) return;
@@ -547,7 +561,7 @@ async function mpImpConfirmar() {
     try {
       const r = await fetch(API_URL, {
         method: 'POST',
-        body: JSON.stringify({ action: 'ingresar_bovinas', id_material: idMat, pesos, proveedor, almacenero })
+             body: JSON.stringify({ action: 'ingresar_bovinas', id_material: idMat, pesos, proveedor, almacenero, zona: zonaImp })
       });
       const res = await r.json();
       if (res.ok) okCount += pesos.length; else errores.push(`${idMat}: ${res.error}`);
@@ -656,4 +670,36 @@ function mpToast(msg, tipo) {
   clearTimeout(el._t);
   el._t = setTimeout(() => { el.style.display = 'none'; }, 4500);
   try { if (navigator.vibrate) navigator.vibrate(tipo === 'error' ? [200, 100, 200] : 120); } catch (e) {}
+}
+function mpZonasTxt(m) {
+  const zonas = (m.zonas || []).map((z) => z.replace('Zona ', 'Z')).join(', ');
+  const sin = Number(m.sinZona) > 0 ? ` <span class="badge badge-warn">${m.sinZona} sin zona</span>` : '';
+  return (zonas || sin) ? `${zonas}${sin}` : '—';
+}
+
+function mpAsignarZona() {
+  const zona = document.getElementById('mp-asig-zona').value;
+  if (!zona) { alert('Elige una zona.'); return; }
+  const n = document.getElementById('mp-sin-zona-txt').textContent;
+  if (!confirm(`${mpDetalleActual}: ${n}.\n\n¿Asignarles la ${zona}?`)) return;
+
+  const btn = document.getElementById('mp-asig-zona-btn');
+  btn.disabled = true; btn.textContent = 'Asignando…';
+  fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'asignar_zona',
+      id_material: mpDetalleActual,
+      zona: zona,
+      usuario: localStorage.getItem('mp_last_almacenero') || ''
+    })
+  })
+    .then((r) => r.json())
+    .then((res) => {
+      if (!res.ok) { alert('No se pudo asignar: ' + (res.error || 'error desconocido')); return; }
+      if (typeof mpToast === 'function') mpToast(`✔ ${res.actualizadas} mangas → ${zona}`);
+      return fetchMpStock().then(() => abrirDetalleBovinas(mpDetalleActual));
+    })
+    .catch((err) => alert('Error de conexión: ' + err.message))
+    .finally(() => { btn.disabled = false; btn.textContent = '📍 Asignar zona a las que no tienen'; });
 }
