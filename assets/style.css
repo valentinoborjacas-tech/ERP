@@ -472,3 +472,38 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   .sidebar-overlay.open { display: block; }
 }
   select.input-classic { -webkit-appearance: menulist; appearance: auto; background: #fff; }
+
+/* ============ TABLET ============ */
+/* Las tablas tenían ancho mínimo de 900px y el scroll horizontal bloqueado: en tablet
+   (vertical 768px / horizontal 1024px) se cortaban las columnas de la derecha, como "Acciones".
+   Ahora se ajustan al ancho disponible y, si aun así no caben, se deslizan de lado. */
+.table-scroll{ overflow-x:auto; touch-action:pan-x pan-y; }
+@media (max-width: 1279px){
+  .table-scroll table{ min-width:0; }
+}
+
+/* Pantallas táctiles (tablet en el almacén): todo más grande para usarlo con el dedo.
+   No afecta al computador con mouse. */
+@media (pointer: coarse){
+  table.data-grid{ font-size:14px; }
+  table.data-grid th{ font-size:13px; padding:8px; }
+  table.data-grid td{ padding:9px 8px; }
+  .badge{ font-size:13px; padding:4px 8px; }
+
+  .btn-classic{ min-height:44px; padding:10px 16px; font-size:15px; }
+  table.data-grid .btn-classic{ min-height:40px; padding:8px 12px !important; font-size:14px !important; }
+  .input-classic, .search-input-wrap input{ min-height:44px; font-size:16px !important; }
+  table.data-grid .input-classic{ min-height:40px; }
+  input.disp-cantidad{ width:100px !important; }
+  select.disp-ubicacion{ min-width:140px; }
+
+  .module-title{ font-size:17px; }
+  .module-subtitle, .help-banner{ font-size:14px; }
+  .quick-panel-title{ font-size:16px; }
+  .quick-panel-close{ font-size:15px; padding:8px 10px; }
+  .nav-item{ min-height:48px; }
+}
+/* Tablet (vertical u horizontal): el stock por ubicación ya se ve en el selector, se oculta la columna total */
+@media (pointer: coarse) and (max-width: 1100px){
+  .col-disponible{ display:none; }
+}

@@ -227,7 +227,7 @@ function renderDespachoTabla(detalle, stock) {
         <td>${linea.cantidadSolicitada}</td>
         <td>${despachado}</td>
         <td>0</td>
-        <td>—</td>
+        <td class="col-disponible">—</td>
         <td colspan="2"><span class="badge badge-ok">Completo</span></td>
       </tr>`;
     }
@@ -248,7 +248,7 @@ function renderDespachoTabla(detalle, stock) {
         <td>${linea.cantidadSolicitada}</td>
         <td>${despachado || '—'}</td>
         <td><strong>${pendiente}</strong></td>
-        <td>${totalDisponible}${totalDisponible < pendiente ? ' ⚠️' : ''}</td>
+        <td class="col-disponible">${totalDisponible}${totalDisponible < pendiente ? ' ⚠️' : ''}</td>
         <td><select class="input-classic disp-ubicacion">${opcionesUbicacion}</select></td>
         <td><input type="number" class="input-classic disp-cantidad" value="${sugerido}" min="0" max="${pendiente}" style="width:80px;" /></td>
       </tr>`;
