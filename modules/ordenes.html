@@ -9,6 +9,7 @@
   <select class="input-classic" id="ord-filter-estado" style="width:170px;">
     <option value="">Todos los estados</option>
     <option value="Pendiente">Pendiente</option>
+    <option value="En preparación">En preparación</option>
     <option value="Despachada parcial">Despachada parcial</option>
     <option value="Despachada">Despachada</option>
   </select>
@@ -95,19 +96,20 @@
   </div>
   <div class="help-banner">
     <span>💡</span>
-    <span>Por cada producto toca <b>✓ Completo</b> si sale todo, o escribe cuánto sale. Lo que falte queda pendiente en la orden para el siguiente despacho.</span>
+    <span>Por cada producto toca <b>✓ Completo</b> o escribe cuánto hay listo. Si el pedido sale otro día, toca <b>💾 Guardar avance</b> (no descuenta stock). Cuando sube al camión, toca <b>🚚 Confirmar despacho</b>.</span>
   </div>
   <div class="flex justify-end gap-2 mb-2">
     <button class="btn-classic" id="dispatch-todo">✓ Llenar todo con lo que hay en stock</button>
   </div>
   <div class="table-scroll">
     <table class="data-grid" id="dispatch-table">
-      <thead><tr><th>ID</th><th>Descripción</th><th>Pedido</th><th>Ya salió</th><th class="col-disponible">Disponible</th><th>Ubicación</th><th>Sale ahora</th><th>Falta</th></tr></thead>
+      <thead><tr><th>ID</th><th>Descripción</th><th>Pedido</th><th>Ya salió</th><th class="col-disponible">Disponible</th><th>Ubicación</th><th>Listo / sale</th><th>Falta</th></tr></thead>
       <tbody id="dispatch-tbody"></tbody>
     </table>
   </div>
-  <div class="flex justify-end gap-2 mt-3">
-    <button class="btn-classic btn-primary" id="dispatch-confirm">✔ Confirmar despacho</button>
+  <div class="flex justify-end gap-2 mt-3" style="flex-wrap:wrap;">
+    <button class="btn-classic" id="dispatch-avance">💾 Guardar avance (todavía no sale)</button>
+    <button class="btn-classic btn-primary" id="dispatch-confirm">🚚 Confirmar despacho</button>
   </div>
 </div>
 
@@ -120,7 +122,7 @@
   <div class="field-help" id="order-view-info" style="margin-bottom:8px;"></div>
   <div class="table-scroll">
     <table class="data-grid">
-      <thead><tr><th>ID</th><th>Descripción</th><th>Solicitado</th><th>Despachado</th><th>Falta</th><th>Ubicación</th><th>Estado</th></tr></thead>
+      <thead><tr><th>ID</th><th>Descripción</th><th>Solicitado</th><th>Listo (sin despachar)</th><th>Despachado</th><th>Falta</th><th>Ubicación</th><th>Estado</th></tr></thead>
       <tbody id="order-view-tbody"></tbody>
     </table>
   </div>

@@ -25,6 +25,7 @@
  *   ORDENES:         NUMERO, FECHA, SOLICITANTE, ESTADO, OBSERVACIONES
  *   ORDENES_DETALLE: NUMERO_ORDEN, ID_ARTICULO, DESCRIPCION, CANTIDAD_SOLICITADA,
  *                    CANTIDAD_DESPACHADA, ID_UBICACION, ESTADO_LINEA
+ *                    (+ CANTIDAD_PREPARADA y FECHA_AVANCE, que se agregan solas al guardar un avance)
  *   DESPACHOS (se crea sola): ID_DESPACHO, NUMERO_ORDEN, FECHA, ID_ARTICULO, DESCRIPCION,
  *                    CANTIDAD, ID_UBICACION, USUARIO
  */
@@ -69,6 +70,7 @@ function doPost(e) {
     if (data.action === 'actualizar_ticket') return jsonResponse(actualizarTicket(data));
     if (data.action === 'crear_orden') return jsonResponse(crearOrden(data));
     if (data.action === 'despachar_orden') return jsonResponse(despacharOrden(data));
+    if (data.action === 'guardar_avance') return jsonResponse(guardarAvanceOrden(data));
     if (data.action === 'ingresar_bovinas') return jsonResponse(ingresarBovinas(data));
     if (data.action === 'registrar_produccion') return jsonResponse(registrarProduccion(data));
     if (data.action === 'iniciar_produccion') return jsonResponse(iniciarProduccion(data));
@@ -322,6 +324,8 @@ function getOrdenDetalle(numero) {
         descripcion: d.DESCRIPCION || '',
         cantidadSolicitada: solicitada,
         cantidadDespachada: despachada,
+        cantidadPreparada: Number(d.CANTIDAD_PREPARADA) || 0,
+        fechaAvance: d.FECHA_AVANCE instanceof Date ? d.FECHA_AVANCE.toISOString() : (d.FECHA_AVANCE || ''),
         cantidadPendiente: Math.max(solicitada - despachada, 0),
         idUbicacion: d.ID_UBICACION || '',
         estadoLinea: d.ESTADO_LINEA || 'Pendiente'
@@ -398,6 +402,73 @@ function getDespachos(numero) {
     });
 }
 
+// Avance sin despachar: la almacenera registra lo que ya tiene listo/separado para la orden.
+// No mueve stock ni genera guía (la mercadería no ha salido). Se guarda en ORDENES_DETALLE,
+// columnas CANTIDAD_PREPARADA y FECHA_AVANCE (se crean solas). Es una cantidad absoluta:
+// "hoy hay 3,000 listos", no se suma a lo anterior.
+function guardarAvanceOrden(data) {
+  // data esperado: { numero, lineas: [{idArticulo, cantidadPreparada}], usuario }
+  const numero = String(data.numero || '');
+  if (!numero) return { ok: false, error: 'Falta el número de orden' };
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const detalleSheet = getSheet(SHEET_ORDENES_DETALLE);
+    const colPrep = asegurarColumna(detalleSheet, 'CANTIDAD_PREPARADA');
+    const colFechaAv = asegurarColumna(detalleSheet, 'FECHA_AVANCE');
+    const values = detalleSheet.getDataRange().getValues();
+    const headers = values[0].map(String);
+    const colNumero = headers.indexOf('NUMERO_ORDEN');
+    const colId = headers.indexOf('ID_ARTICULO');
+    const colCantSol = headers.indexOf('CANTIDAD_SOLICITADA');
+    const colCantDesp = headers.indexOf('CANTIDAD_DESPACHADA');
+
+    const filasOrden = [];
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][colNumero]) === numero) filasOrden.push(i);
+    }
+    if (!filasOrden.length) return { ok: false, error: 'No se encontró la orden ' + numero };
+
+    const errores = [];
+    const cambios = [];
+    (data.lineas || []).forEach(function (l) {
+      const idArt = String(l.idArticulo);
+      const fila = filasOrden.find(function (i) { return String(values[i][colId]) === idArt; });
+      if (fila === undefined) { errores.push(idArt + ': no pertenece a esta orden'); return; }
+      const cantidad = Math.max(Number(l.cantidadPreparada) || 0, 0);
+      const pendiente = Math.max((Number(values[fila][colCantSol]) || 0) - (Number(values[fila][colCantDesp]) || 0), 0);
+      if (cantidad > pendiente) { errores.push(idArt + ': solo quedan ' + pendiente + ' por despachar'); return; }
+      if (cantidad === (Number(values[fila][colPrep - 1]) || 0)) return; // sin cambios
+      cambios.push({ fila: fila, cantidad: cantidad });
+    });
+    if (errores.length) return { ok: false, error: errores.join('\n') };
+
+    const ahora = new Date();
+    cambios.forEach(function (c) {
+      detalleSheet.getRange(c.fila + 1, colPrep).setValue(c.cantidad);
+      detalleSheet.getRange(c.fila + 1, colFechaAv).setValue(ahora);
+      values[c.fila][colPrep - 1] = c.cantidad;
+    });
+
+    // Si la orden aún no tuvo despachos, su estado refleja si ya hay algo listo
+    const huboDespachos = filasOrden.some(function (i) { return (Number(values[i][colCantDesp]) || 0) > 0; });
+    let estado = null;
+    if (!huboDespachos) {
+      estado = filasOrden.some(function (i) { return (Number(values[i][colPrep - 1]) || 0) > 0; }) ? 'En preparación' : 'Pendiente';
+      const ordenSheet = getSheet(SHEET_ORDENES);
+      const ov = ordenSheet.getDataRange().getValues();
+      const oh = ov[0].map(String);
+      for (let i = 1; i < ov.length; i++) {
+        if (String(ov[i][oh.indexOf('NUMERO')]) === numero) { ordenSheet.getRange(i + 1, oh.indexOf('ESTADO') + 1).setValue(estado); break; }
+      }
+    }
+    return { ok: true, actualizadas: cambios.length, estado: estado };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function despacharOrden(data) {
   // data esperado: { numero, lineas: [{idArticulo, descripcion, idUbicacion, cantidadDespachar}], usuario }
   const numero = String(data.numero || '');
@@ -415,6 +486,7 @@ function despacharOrden(data) {
     const colCantDesp = headers.indexOf('CANTIDAD_DESPACHADA');
     const colUbic = headers.indexOf('ID_UBICACION');
     const colEstadoLinea = headers.indexOf('ESTADO_LINEA');
+    const colPrep = headers.indexOf('CANTIDAD_PREPARADA'); // -1 si nunca se guardó un avance
 
     const filasOrden = [];
     for (let i = 1; i < values.length; i++) {
@@ -486,6 +558,12 @@ function despacharOrden(data) {
       detalleSheet.getRange(a.fila + 1, colCantDesp + 1).setValue(despachada);
       detalleSheet.getRange(a.fila + 1, colUbic + 1).setValue(ubicPrevias.join(', '));
       detalleSheet.getRange(a.fila + 1, colEstadoLinea + 1).setValue(despachada >= solicitada ? 'Despachado' : 'Parcial');
+      // Lo que estaba listo y ya salió deja de contarse como "listo"
+      if (colPrep >= 0) {
+        const preparada = Math.max((Number(values[a.fila][colPrep]) || 0) - a.cantidad, 0);
+        values[a.fila][colPrep] = preparada;
+        detalleSheet.getRange(a.fila + 1, colPrep + 1).setValue(preparada);
+      }
 
       despSheet.appendRow([idDespacho, numero, ahora, a.idArticulo, a.descripcion, a.cantidad, a.idUbicacion, usuario]);
       guia.push({ id: a.idArticulo, descripcion: a.descripcion, cantidad: a.cantidad, ubicacion: a.idUbicacion });

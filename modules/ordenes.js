@@ -26,6 +26,7 @@ window.initOrdenesModule = function () {
   });
   document.getElementById('dispatch-confirm').addEventListener('click', confirmarDespacho);
   document.getElementById('dispatch-todo').addEventListener('click', despacharTodoLoQueHay);
+  document.getElementById('dispatch-avance').addEventListener('click', guardarAvance);
 
   document.getElementById('order-view-close').addEventListener('click', () => {
     document.getElementById('order-view-panel').classList.remove('show');
@@ -61,6 +62,7 @@ function fetchOrdenes() {
 
 function badgeEstadoOrden(estado) {
   if (estado === 'Pendiente') return 'badge-neutral';
+  if (estado === 'En preparación') return 'badge-preparacion';
   if (estado === 'Despachada parcial') return 'badge-warn';
   return 'badge-ok';
 }
@@ -84,7 +86,7 @@ function ordenRowHtml(o) {
   // Una orden despachada en parte sigue abierta para despachar lo que falta
   const botonDespacho = o.estado === 'Despachada'
     ? ''
-    : `<button class="btn-classic" style="padding:3px 8px; font-size:11.5px;" data-action="preparar" data-numero="${o.numero}">📦 ${o.estado === 'Pendiente' ? 'Preparar' : 'Despachar lo que falta'}</button>`;
+    : `<button class="btn-classic" style="padding:3px 8px; font-size:11.5px;" data-action="preparar" data-numero="${o.numero}">📦 ${{ 'Pendiente': 'Preparar', 'En preparación': 'Continuar' }[o.estado] || 'Despachar lo que falta'}</button>`;
   // Las órdenes ya despachadas (en parte o completas) se pueden seguir consultando
   const botonVer = o.estado === 'Pendiente'
     ? ''
@@ -145,18 +147,26 @@ function renderVerOrdenDetalle(detalle) {
     ? detalle.map((l) => {
         const solicitado = Number(l.cantidadSolicitada) || 0;
         const despachado = Number(l.cantidadDespachada) || 0;
+        const listo = Number(l.cantidadPreparada) || 0;
         return `
           <tr>
             <td data-label="ID">${l.idArticulo}</td>
             <td data-label="Descripción">${l.descripcion}</td>
             <td data-label="Solicitado">${solicitado}</td>
+            <td data-label="Listo (sin despachar)">${listo || '—'}</td>
             <td data-label="Despachado">${despachado || '—'}</td>
-            <td data-label="Falta"><strong>${Math.max(solicitado - despachado, 0)}</strong></td>
+            <td data-label="Falta"><strong>${Math.max(solicitado - despachado - listo, 0)}</strong></td>
             <td data-label="Ubicación">${l.idUbicacion || '—'}</td>
-            <td data-label="Estado"><span class="badge ${badgeLinea[l.estadoLinea] || 'badge-neutral'}">${l.estadoLinea || 'Pendiente'}</span></td>
+            <td data-label="Estado">${(() => {
+              // Producto separado pero aún sin despachar
+              let est = l.estadoLinea || 'Pendiente';
+              if (est === 'Pendiente' && listo > 0) est = listo >= solicitado - despachado ? 'Listo' : 'En preparación';
+              const cls = badgeLinea[est] || (est === 'Listo' || est === 'En preparación' ? 'badge-preparacion' : 'badge-neutral');
+              return `<span class="badge ${cls}">${est}</span>`;
+            })()}</td>
           </tr>`;
       }).join('')
-    : `<tr><td colspan="7">Esta orden no tiene productos registrados.</td></tr>`;
+    : `<tr><td colspan="8">Esta orden no tiene productos registrados.</td></tr>`;
 }
 
 function renderVerOrdenDespachos(lineas) {
@@ -334,8 +344,11 @@ function renderDespachoTabla(detalle, stock) {
       ? ubicacionesDisponibles.map((u) => `<option value="${u.ubicacion}" data-disp="${u.disponible}">${u.ubicacion} (${u.disponible} disp.)</option>`).join('')
       : `<option value="" data-disp="0">Sin stock ubicado</option>`;
 
+    // Lo que se guardó como avance (listo, aún sin despachar) aparece ya cargado
+    const preparada = Math.min(Number(linea.cantidadPreparada) || 0, pendiente);
+
     return `
-      <tr data-id="${linea.idArticulo}" data-descripcion="${linea.descripcion}" data-pendiente="${pendiente}">
+      <tr data-id="${linea.idArticulo}" data-descripcion="${linea.descripcion}" data-pendiente="${pendiente}" data-preparada="${preparada}">
         <td>${linea.idArticulo}</td>
         <td>${linea.descripcion}</td>
         <td>${linea.cantidadSolicitada}</td>
@@ -345,14 +358,16 @@ function renderDespachoTabla(detalle, stock) {
         <td>
           <div class="disp-sale">
             <button type="button" class="btn-classic disp-completo"${ubicacionesDisponibles.length ? '' : ' disabled'}>✓ Completo</button>
-            <input type="number" class="input-classic disp-cantidad" value="" placeholder="0" min="0" max="${pendiente}" inputmode="numeric"${ubicacionesDisponibles.length ? '' : ' disabled'} />
+            <input type="number" class="input-classic disp-cantidad" value="${preparada || ''}" placeholder="0" min="0" max="${pendiente}" inputmode="numeric"${ubicacionesDisponibles.length ? '' : ' disabled'} />
           </div>
+          ${preparada ? `<div class="field-help" style="margin-top:2px;">Avance guardado: ${preparada}</div>` : ''}
         </td>
         <td class="disp-falta"><strong>${pendiente}</strong></td>
       </tr>`;
   }).join('');
 
   tbody.querySelectorAll('tr[data-id]').forEach((fila) => {
+    if (Number(fila.dataset.preparada) > 0) actualizarFaltaFila(fila);
     fila.querySelector('.disp-cantidad').addEventListener('input', () => actualizarFaltaFila(fila));
     fila.querySelector('.disp-ubicacion').addEventListener('change', () => actualizarFaltaFila(fila));
     fila.querySelector('.disp-completo').addEventListener('click', () => {
@@ -389,6 +404,44 @@ function despacharTodoLoQueHay() {
     fila.querySelector('.disp-cantidad').value = Math.min(Number(fila.dataset.pendiente) || 0, stockUbicacionFila(fila));
     actualizarFaltaFila(fila);
   });
+}
+
+// Guarda lo que ya está listo sin despacharlo: no descuenta stock ni genera guía.
+// El día del envío, esas cantidades aparecen cargadas y basta con confirmar el despacho.
+function guardarAvance() {
+  const numero = document.getElementById('dispatch-panel').dataset.numero;
+  const lineas = [];
+  document.querySelectorAll('#dispatch-tbody tr[data-id]').forEach((fila) => {
+    const cantidad = parseInt(fila.querySelector('.disp-cantidad').value, 10) || 0;
+    // Se envían también los ceros para poder borrar un avance guardado por error
+    if (cantidad > 0 || Number(fila.dataset.preparada) > 0) {
+      lineas.push({ idArticulo: fila.dataset.id, cantidadPreparada: cantidad });
+    }
+  });
+  if (!lineas.length) { alert('No hay nada que guardar. Toca "✓ Completo" o escribe cuánto está listo.'); return; }
+
+  const btn = document.getElementById('dispatch-avance');
+  btn.textContent = 'Guardando…';
+  btn.disabled = true;
+  fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'guardar_avance', numero, lineas, usuario: 'almacenero' })
+  })
+    .then((r) => r.json())
+    .then((resultado) => {
+      if (resultado.ok) {
+        document.getElementById('dispatch-panel').classList.remove('show');
+        alert('Avance guardado. Todavía no se despachó nada: cuando salga el camión, abre la orden y toca "Confirmar despacho".');
+        fetchOrdenes();
+      } else {
+        alert('Error: ' + (resultado.error || 'no se pudo guardar el avance'));
+      }
+    })
+    .catch((err) => alert('Error de conexión: ' + err.message))
+    .finally(() => {
+      btn.textContent = '💾 Guardar avance (todavía no sale)';
+      btn.disabled = false;
+    });
 }
 
 function confirmarDespacho() {
@@ -433,7 +486,7 @@ function confirmarDespacho() {
     })
     .catch((err) => alert('Error de conexión: ' + err.message))
     .finally(() => {
-      confirmBtn.textContent = '✔ Confirmar despacho';
+      confirmBtn.textContent = '🚚 Confirmar despacho';
       confirmBtn.disabled = false;
     });
 }
@@ -478,29 +531,31 @@ function imprimirHojaOrden(numero) {
     .then(([detalle, despachosRaw]) => {
       const d = datosHojaOrden(orden);
       const fmt = (n) => (Number(n) || 0).toLocaleString('es-PE');
-      // Documento "vivo": Sale / ✓ / Falta se llenan con lo ya despachado;
-      // si un producto aún no tiene despachos, quedan en blanco para escribir a mano
+      // Documento "vivo": "Listo" = lo separado (avance guardado) + lo ya despachado.
+      // Si un producto aún no tiene nada, las casillas quedan en blanco para escribir a mano.
       let filas = detalle.map((l, i) => {
         const pedido = Number(l.cantidadSolicitada) || 0;
         const salio = Number(l.cantidadDespachada) || 0;
-        const completo = salio > 0 && salio >= pedido;
-        const sale = salio <= 0 ? '' : (completo ? 'COMPLETO' : fmt(salio));
-        const falta = salio <= 0 ? '' : (completo ? '—' : fmt(pedido - salio));
+        const avance = salio + (Number(l.cantidadPreparada) || 0);
+        const completo = avance > 0 && avance >= pedido;
+        const listo = avance <= 0 ? '' : (completo ? 'COMPLETO' : fmt(avance));
+        const falta = avance <= 0 ? '' : (completo ? '—' : fmt(pedido - avance));
         return `<tr><td class="hoja-centro">${i + 1}</td><td>${escHoja(l.idArticulo)}</td><td>${escHoja(l.descripcion)}</td>` +
           `<td class="hoja-num">${fmt(pedido)}</td>` +
-          `<td class="${completo ? 'hoja-completo' : 'hoja-num'}">${sale}</td>` +
+          `<td class="${completo ? 'hoja-completo' : 'hoja-num'}">${listo}</td>` +
           `<td class="hoja-completo">${completo ? '✓' : ''}</td>` +
-          `<td class="${falta && falta !== '—' ? 'hoja-faltante' : 'hoja-centro'}">${falta}</td></tr>`;
+          `<td class="${falta && falta !== '—' ? 'hoja-faltante' : 'hoja-centro'}">${falta}</td>` +
+          `<td class="hoja-num">${salio ? fmt(salio) : ''}</td></tr>`;
       }).join('');
-      for (let i = detalle.length; i < HOJA_FILAS_MIN; i++) filas += '<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
+      for (let i = detalle.length; i < HOJA_FILAS_MIN; i++) filas += '<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
 
       const despachosLineas = Array.isArray(despachosRaw) ? despachosRaw : [];
       const despachos = [...new Set(despachosLineas.map((x) => x.idDespacho))].map((id) => {
         const primera = despachosLineas.find((x) => x.idDespacho === id);
         return id + ' · ' + new Date(primera.fecha).toLocaleDateString('es-PE');
       });
-      const estadoClase = { 'Pendiente': 'pendiente', 'Despachada parcial': 'parcial', 'Despachada': 'completado' }[orden.estado] || 'pendiente';
-      const estadoTexto = { 'Pendiente': 'PENDIENTE', 'Despachada parcial': 'PARCIAL', 'Despachada': 'COMPLETADA' }[orden.estado] || String(orden.estado || '').toUpperCase();
+      const estadoClase = { 'Pendiente': 'pendiente', 'En preparación': 'preparacion', 'Despachada parcial': 'parcial', 'Despachada': 'completado' }[orden.estado] || 'pendiente';
+      const estadoTexto = { 'Pendiente': 'PENDIENTE', 'En preparación': 'EN PREPARACIÓN', 'Despachada parcial': 'PARCIAL', 'Despachada': 'COMPLETADA' }[orden.estado] || String(orden.estado || '').toUpperCase();
 
       const fecha = orden.fecha ? new Date(orden.fecha).toLocaleDateString('es-PE') : '';
       cont.innerHTML = `
@@ -524,7 +579,7 @@ function imprimirHojaOrden(numero) {
           <table class="hoja-items">
             <thead><tr>
               <th style="width:30px;">Ítem</th><th style="width:50px;">Código</th><th>Producto</th><th style="width:66px;">Pedido</th>
-              <th style="width:100px;">Sale (o Completo)</th><th style="width:30px;">✓</th><th style="width:80px;">Falta</th>
+              <th style="width:96px;">Listo (o Completo)</th><th style="width:30px;">✓</th><th style="width:72px;">Falta</th><th style="width:76px;">Despachado</th>
             </tr></thead>
             <tbody>${filas}</tbody>
           </table>

@@ -185,6 +185,7 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   .badge-warn{ background:#fdf3dc; color:var(--warn); border-color:#eeddab; }
   .badge-danger{ background:#fbe6e6; color:var(--danger); border-color:#eeb8b8; }
   .badge-neutral{ background:#eeeeee; color:#666; border-color:#cccccc; }
+  .badge-preparacion{ background:#e7f0fb; color:#2a5db0; border-color:#b9cdee; }
 
   .row-actions{ display:flex; gap:4px; }
 
@@ -462,6 +463,7 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
 .hoja-estado-completado{ color:#1e823c; }
 .hoja-estado-parcial{ color:#c86e00; }
 .hoja-estado-pendiente{ color:#666; }
+.hoja-estado-preparacion{ color:#2a5db0; }
 .hoja-despachos{ margin-top:4px; color:#444; font-size:11px; }
 .hoja-impreso{ text-align:right; font-size:10px; color:#777; margin-top:4px; }
 .hoja-obs{ border:1px solid #000; min-height:58px; padding:5px 6px; font-size:12px; margin-bottom:8px; break-inside:avoid; }
