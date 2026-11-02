@@ -108,6 +108,22 @@
   </div>
 </div>
 
+<!-- Panel: ver una orden ya despachada (solo consulta) -->
+<div class="quick-panel" id="order-view-panel">
+  <div class="quick-panel-header">
+    <span class="quick-panel-title">Orden <span id="order-view-numero">—</span></span>
+    <span class="quick-panel-close" id="order-view-close">✕ Cerrar</span>
+  </div>
+  <div class="field-help" id="order-view-info" style="margin-bottom:8px;"></div>
+  <div class="table-scroll">
+    <table class="data-grid">
+      <thead><tr><th>ID</th><th>Descripción</th><th>Solicitado</th><th>Despachado</th><th>Falta</th><th>Ubicación</th><th>Estado</th></tr></thead>
+      <tbody id="order-view-tbody"></tbody>
+    </table>
+  </div>
+  <div id="order-view-despachos"></div>
+</div>
+
 <!-- Panel: guía generada (imprimible) -->
 <div class="quick-panel" id="guia-panel">
   <div class="quick-panel-header">

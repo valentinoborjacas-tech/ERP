@@ -26,6 +26,10 @@ window.initOrdenesModule = function () {
   });
   document.getElementById('dispatch-confirm').addEventListener('click', confirmarDespacho);
 
+  document.getElementById('order-view-close').addEventListener('click', () => {
+    document.getElementById('order-view-panel').classList.remove('show');
+  });
+
   document.getElementById('guia-panel-close').addEventListener('click', () => {
   document.getElementById('guia-panel').classList.remove('show');
   });
@@ -77,9 +81,14 @@ function renderOrdenesFiltered() {
 
 function ordenRowHtml(o) {
   // Una orden despachada en parte sigue abierta para despachar lo que falta
-  const accion = o.estado === 'Despachada'
-    ? `<span class="field-help" style="margin:0;">Completada</span>`
+  const botonDespacho = o.estado === 'Despachada'
+    ? ''
     : `<button class="btn-classic" style="padding:3px 8px; font-size:11.5px;" data-action="preparar" data-numero="${o.numero}">📦 ${o.estado === 'Pendiente' ? 'Preparar' : 'Despachar lo que falta'}</button>`;
+  // Las órdenes ya despachadas (en parte o completas) se pueden seguir consultando
+  const botonVer = o.estado === 'Pendiente'
+    ? ''
+    : `<button class="btn-classic" style="padding:3px 8px; font-size:11.5px;" data-action="ver" data-numero="${o.numero}">👁 Ver</button>`;
+  const accion = `<div class="row-actions" style="flex-wrap:wrap;">${botonDespacho}${botonVer}</div>`;
 
   return `
     <tr>
@@ -93,7 +102,84 @@ function ordenRowHtml(o) {
 
 function handleOrdenesClick(e) {
   const btn = e.target.closest('[data-action="preparar"]');
-  if (btn) abrirDespacho(btn.dataset.numero);
+  if (btn) { abrirDespacho(btn.dataset.numero); return; }
+  const btnVer = e.target.closest('[data-action="ver"]');
+  if (btnVer) abrirVerOrden(btnVer.dataset.numero);
+}
+
+// ---------- Ver una orden ya despachada (solo consulta) ----------
+let despachosVista = [];
+
+function abrirVerOrden(numero) {
+  const orden = ordenesData.find((o) => o.numero === numero);
+  const panel = document.getElementById('order-view-panel');
+  document.getElementById('order-view-numero').textContent = numero;
+  document.getElementById('order-view-info').textContent =
+    (orden ? orden.solicitante + ' · ' + orden.estado : '') + (orden && orden.observaciones ? ' · ' + orden.observaciones : '');
+  document.getElementById('order-view-tbody').innerHTML = `<tr><td colspan="7">Cargando…</td></tr>`;
+  document.getElementById('order-view-despachos').innerHTML = '';
+  panel.classList.add('show');
+  panel.dataset.numero = numero;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  fetch(`${API_URL}?action=orden_detalle&numero=${encodeURIComponent(numero)}&_=${Date.now()}`, { cache: 'no-store' })
+    .then((r) => r.json())
+    .then(renderVerOrdenDetalle)
+    .catch((err) => {
+      document.getElementById('order-view-tbody').innerHTML = `<tr><td colspan="7">Error: ${err.message}</td></tr>`;
+    });
+
+  fetch(`${API_URL}?action=despachos&numero=${encodeURIComponent(numero)}&_=${Date.now()}`, { cache: 'no-store' })
+    .then((r) => r.json())
+    .then((data) => renderVerOrdenDespachos(Array.isArray(data) ? data : []))
+    .catch(() => renderVerOrdenDespachos([]));
+}
+
+function renderVerOrdenDetalle(detalle) {
+  const badgeLinea = { Despachado: 'badge-ok', Parcial: 'badge-warn' };
+  document.getElementById('order-view-tbody').innerHTML = detalle.length
+    ? detalle.map((l) => {
+        const solicitado = Number(l.cantidadSolicitada) || 0;
+        const despachado = Number(l.cantidadDespachada) || 0;
+        return `
+          <tr>
+            <td data-label="ID">${l.idArticulo}</td>
+            <td data-label="Descripción">${l.descripcion}</td>
+            <td data-label="Solicitado">${solicitado}</td>
+            <td data-label="Despachado">${despachado || '—'}</td>
+            <td data-label="Falta"><strong>${Math.max(solicitado - despachado, 0)}</strong></td>
+            <td data-label="Ubicación">${l.idUbicacion || '—'}</td>
+            <td data-label="Estado"><span class="badge ${badgeLinea[l.estadoLinea] || 'badge-neutral'}">${l.estadoLinea || 'Pendiente'}</span></td>
+          </tr>`;
+      }).join('')
+    : `<tr><td colspan="7">Esta orden no tiene productos registrados.</td></tr>`;
+}
+
+function renderVerOrdenDespachos(lineas) {
+  despachosVista = lineas;
+  const ids = [...new Set(lineas.map((l) => l.idDespacho))];
+  const cont = document.getElementById('order-view-despachos');
+  cont.innerHTML = ids.length
+    ? `<div class="field-label" style="margin:12px 0 6px;">Despachos realizados</div>` +
+      ids.map((id) => {
+        const delDespacho = lineas.filter((l) => l.idDespacho === id);
+        const resumen = delDespacho.map((l) => `${l.descripcion} (${l.cantidad})`).join(', ');
+        return `
+          <div class="flex items-center justify-between gap-2 mb-2" style="flex-wrap:wrap;">
+            <span><strong>${id}</strong> · ${new Date(delDespacho[0].fecha).toLocaleString()} · ${resumen}</span>
+            <button class="btn-classic" data-reimprimir="${id}">🖨️ Ver guía</button>
+          </div>`;
+      }).join('')
+    : '';
+
+  cont.querySelectorAll('[data-reimprimir]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const delDespacho = despachosVista.filter((l) => l.idDespacho === btn.dataset.reimprimir);
+      const guia = delDespacho.map((l) => ({ id: l.idArticulo, descripcion: l.descripcion, cantidad: l.cantidad, ubicacion: l.idUbicacion }));
+      mostrarGuia(delDespacho[0].numero, guia, btn.dataset.reimprimir);
+      document.getElementById('guia-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
 }
 
 // ---------- Crear nueva orden ----------
