@@ -471,23 +471,36 @@ function imprimirHojaOrden(numero) {
   const cont = document.getElementById('hoja-print');
   cont.innerHTML = '';
 
-  fetch(`${API_URL}?action=orden_detalle&numero=${encodeURIComponent(numero)}&_=${Date.now()}`, { cache: 'no-store' })
-    .then((r) => r.json())
-    .then((detalle) => {
+  Promise.all([
+    fetch(`${API_URL}?action=orden_detalle&numero=${encodeURIComponent(numero)}&_=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json()),
+    fetch(`${API_URL}?action=despachos&numero=${encodeURIComponent(numero)}&_=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json()).catch(() => [])
+  ])
+    .then(([detalle, despachosRaw]) => {
       const d = datosHojaOrden(orden);
-      const conDespachos = detalle.some((l) => (Number(l.cantidadDespachada) || 0) > 0);
       const fmt = (n) => (Number(n) || 0).toLocaleString('es-PE');
-      const colsMano = '<td></td><td></td><td></td>';
+      // Documento "vivo": Sale / ✓ / Falta se llenan con lo ya despachado;
+      // si un producto aún no tiene despachos, quedan en blanco para escribir a mano
       let filas = detalle.map((l, i) => {
         const pedido = Number(l.cantidadSolicitada) || 0;
         const salio = Number(l.cantidadDespachada) || 0;
+        const completo = salio > 0 && salio >= pedido;
+        const sale = salio <= 0 ? '' : (completo ? 'COMPLETO' : fmt(salio));
+        const falta = salio <= 0 ? '' : (completo ? '—' : fmt(pedido - salio));
         return `<tr><td class="hoja-centro">${i + 1}</td><td>${escHoja(l.idArticulo)}</td><td>${escHoja(l.descripcion)}</td>` +
           `<td class="hoja-num">${fmt(pedido)}</td>` +
-          (conDespachos ? `<td class="hoja-num">${salio ? fmt(salio) : '—'}</td><td class="hoja-num">${fmt(Math.max(pedido - salio, 0))}</td>` : '') +
-          colsMano + '</tr>';
+          `<td class="${completo ? 'hoja-completo' : 'hoja-num'}">${sale}</td>` +
+          `<td class="hoja-completo">${completo ? '✓' : ''}</td>` +
+          `<td class="${falta && falta !== '—' ? 'hoja-faltante' : 'hoja-centro'}">${falta}</td></tr>`;
       }).join('');
-      const vacia = '<tr><td></td><td></td><td></td><td></td>' + (conDespachos ? '<td></td><td></td>' : '') + colsMano + '</tr>';
-      for (let i = detalle.length; i < HOJA_FILAS_MIN; i++) filas += vacia;
+      for (let i = detalle.length; i < HOJA_FILAS_MIN; i++) filas += '<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
+
+      const despachosLineas = Array.isArray(despachosRaw) ? despachosRaw : [];
+      const despachos = [...new Set(despachosLineas.map((x) => x.idDespacho))].map((id) => {
+        const primera = despachosLineas.find((x) => x.idDespacho === id);
+        return id + ' · ' + new Date(primera.fecha).toLocaleDateString('es-PE');
+      });
+      const estadoClase = { 'Pendiente': 'pendiente', 'Despachada parcial': 'parcial', 'Despachada': 'completado' }[orden.estado] || 'pendiente';
+      const estadoTexto = { 'Pendiente': 'PENDIENTE', 'Despachada parcial': 'PARCIAL', 'Despachada': 'COMPLETADA' }[orden.estado] || String(orden.estado || '').toUpperCase();
 
       const fecha = orden.fecha ? new Date(orden.fecha).toLocaleDateString('es-PE') : '';
       cont.innerHTML = `
@@ -495,7 +508,7 @@ function imprimirHojaOrden(numero) {
           <table class="hoja-head"><tbody>
             <tr>
               <td class="hoja-logo" rowspan="2">${d.empresa && d.empresa.logo ? `<img src="${d.empresa.logo}" alt="${escHoja(d.empresa.nombre)}">` : `<strong>${escHoja(d.empresa ? d.empresa.nombre : 'SGA-Almacén')}</strong>`}</td>
-              <td class="hoja-titulo" colspan="3">ORDEN DE PEDIDO</td>
+              <td class="hoja-titulo" colspan="3">ORDEN DE PEDIDO <span class="hoja-estado hoja-estado-${estadoClase}">${escHoja(estadoTexto)}</span></td>
             </tr>
             <tr>
               <td><span>N.º ERP</span>${escHoja(orden.numero)}</td>
@@ -506,22 +519,24 @@ function imprimirHojaOrden(numero) {
           <table class="hoja-datos"><tbody>
             <tr><th>Cliente</th><td>${escHoja(d.cliente)}</td><th>Orden de compra</th><td>${escHoja(d.oc || '—')}</td></tr>
             <tr><th>Sede / entrega</th><td>${escHoja(d.sede || '—')}</td><th>Fecha de entrega</th><td>${escHoja(d.entrega || '—')}</td></tr>
-            <tr><th>Empresa</th><td>${d.empresa ? escHoja(d.empresa.nombre + ' · RUC ' + d.empresa.ruc) : '—'}</td><th>Estado</th><td>${escHoja(orden.estado)}</td></tr>
+            <tr><th>Empresa</th><td>${d.empresa ? escHoja(d.empresa.nombre + ' · RUC ' + d.empresa.ruc) : '—'}</td><th>Estado</th><td>${escHoja(estadoTexto)}${despachos.length ? ' · ' + despachos.length + ' despacho(s)' : ''}</td></tr>
           </tbody></table>
           <table class="hoja-items">
             <thead><tr>
               <th style="width:30px;">Ítem</th><th style="width:50px;">Código</th><th>Producto</th><th style="width:66px;">Pedido</th>
-              ${conDespachos ? '<th style="width:66px;">Ya salió</th><th style="width:66px;">Pendiente</th>' : ''}
-              <th style="width:${conDespachos ? 82 : 100}px;">Sale (o Completo)</th><th style="width:30px;">✓</th><th style="width:${conDespachos ? 66 : 80}px;">Falta</th>
+              <th style="width:100px;">Sale (o Completo)</th><th style="width:30px;">✓</th><th style="width:80px;">Falta</th>
             </tr></thead>
             <tbody>${filas}</tbody>
           </table>
-          <div class="hoja-obs"><strong>Observaciones</strong><div>${escHoja(d.notas.join(' · '))}</div></div>
+          <div class="hoja-obs"><strong>Observaciones</strong><div>${escHoja(d.notas.join(' · '))}</div>
+            ${despachos.length ? `<div class="hoja-despachos">Despachos: ${escHoja(despachos.join('  ·  '))}</div>` : ''}
+          </div>
           <div class="hoja-firmas">
             <div><strong>Solicitado por</strong><span>${escHoja(d.creadaPor)}</span></div>
             <div><strong>Autorizado por</strong><span></span></div>
             <div><strong>Recibido por (Almacén)</strong><span></span></div>
           </div>
+          <div class="hoja-impreso">Actualizado al ${new Date().toLocaleString('es-PE')}</div>
         </div>`;
 
       // Imprime solo la hoja (el CSS de impresión oculta todo lo demás)
