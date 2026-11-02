@@ -503,6 +503,12 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   .quick-panel-close{ font-size:15px; padding:8px 10px; }
   .nav-item{ min-height:48px; }
 }
+/* Despacho: botón "✓ Completo" y cantidad juntos */
+.disp-sale{ display:flex; gap:6px; align-items:center; }
+.disp-sale .disp-cantidad{ width:80px; }
+.disp-sale button:disabled, .disp-sale input:disabled{ opacity:.45; cursor:not-allowed; }
+#guia-print table.data-grid td{ border:1px solid #333; }
+
 /* Tablet (vertical u horizontal): el stock por ubicación ya se ve en el selector, se oculta la columna total */
 @media (pointer: coarse) and (max-width: 1100px){
   .col-disponible{ display:none; }

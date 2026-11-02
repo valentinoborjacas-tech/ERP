@@ -95,11 +95,14 @@
   </div>
   <div class="help-banner">
     <span>💡</span>
-    <span>Despacha lo que tengas ahora: si no alcanza el stock, pon una cantidad menor. La orden queda abierta y luego puedes despachar lo que falta. Elige de qué ubicación sale cada producto.</span>
+    <span>Por cada producto toca <b>✓ Completo</b> si sale todo, o escribe cuánto sale. Lo que falte queda pendiente en la orden para el siguiente despacho.</span>
+  </div>
+  <div class="flex justify-end gap-2 mb-2">
+    <button class="btn-classic" id="dispatch-todo">✓ Llenar todo con lo que hay en stock</button>
   </div>
   <div class="table-scroll">
     <table class="data-grid" id="dispatch-table">
-      <thead><tr><th>ID</th><th>Descripción</th><th>Solicitado</th><th>Ya despachado</th><th>Falta</th><th class="col-disponible">Disponible</th><th>Ubicación</th><th>A despachar</th></tr></thead>
+      <thead><tr><th>ID</th><th>Descripción</th><th>Pedido</th><th>Ya salió</th><th class="col-disponible">Disponible</th><th>Ubicación</th><th>Sale ahora</th><th>Falta</th></tr></thead>
       <tbody id="dispatch-tbody"></tbody>
     </table>
   </div>
@@ -138,7 +141,7 @@
       <div id="guia-solicitante" style="font-size:12px; margin-top:4px;"></div>
     </div>
     <table class="data-grid">
-      <thead><tr><th>ID</th><th>Descripción</th><th>Cantidad</th><th>Ubicación</th></tr></thead>
+      <thead><tr><th>ID</th><th>Descripción</th><th>Cantidad</th><th>Ubicación</th><th>✓</th></tr></thead>
       <tbody id="guia-tbody"></tbody>
     </table>
   </div>

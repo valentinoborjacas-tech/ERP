@@ -25,6 +25,7 @@ window.initOrdenesModule = function () {
   document.getElementById('dispatch-panel').classList.remove('show');
   });
   document.getElementById('dispatch-confirm').addEventListener('click', confirmarDespacho);
+  document.getElementById('dispatch-todo').addEventListener('click', despacharTodoLoQueHay);
 
   document.getElementById('order-view-close').addEventListener('click', () => {
     document.getElementById('order-view-panel').classList.remove('show');
@@ -299,8 +300,11 @@ function abrirDespacho(numero) {
   ]).then(([detalle, stock]) => renderDespachoTabla(detalle, stock));
 }
 
+// Igual que en la hoja de papel: por cada producto, "✓ Completo" o la cantidad que sale.
+// La columna "Falta" se calcula sola mientras se escribe.
 function renderDespachoTabla(detalle, stock) {
-  document.getElementById('dispatch-tbody').innerHTML = detalle.map((linea) => {
+  const tbody = document.getElementById('dispatch-tbody');
+  tbody.innerHTML = detalle.map((linea) => {
     const despachado = Number(linea.cantidadDespachada) || 0;
     const pendiente = Math.max((Number(linea.cantidadSolicitada) || 0) - despachado, 0);
 
@@ -312,9 +316,10 @@ function renderDespachoTabla(detalle, stock) {
         <td>${linea.descripcion}</td>
         <td>${linea.cantidadSolicitada}</td>
         <td>${despachado}</td>
-        <td>0</td>
         <td class="col-disponible">—</td>
-        <td colspan="2"><span class="badge badge-ok">Completo</span></td>
+        <td>—</td>
+        <td><span class="badge badge-ok">Ya salió todo</span></td>
+        <td>0</td>
       </tr>`;
     }
 
@@ -323,31 +328,75 @@ function renderDespachoTabla(detalle, stock) {
     const totalDisponible = ubicacionesDisponibles.reduce((sum, u) => sum + u.disponible, 0);
 
     const opcionesUbicacion = ubicacionesDisponibles.length
-      ? ubicacionesDisponibles.map((u) => `<option value="${u.ubicacion}">${u.ubicacion} (${u.disponible} disp.)</option>`).join('')
-      : `<option value="">Sin ubicación con stock</option>`;
-    const sugerido = Math.min(pendiente, ubicacionesDisponibles.length ? ubicacionesDisponibles[0].disponible : 0);
+      ? ubicacionesDisponibles.map((u) => `<option value="${u.ubicacion}" data-disp="${u.disponible}">${u.ubicacion} (${u.disponible} disp.)</option>`).join('')
+      : `<option value="" data-disp="0">Sin stock ubicado</option>`;
 
     return `
-      <tr data-id="${linea.idArticulo}" data-descripcion="${linea.descripcion}">
+      <tr data-id="${linea.idArticulo}" data-descripcion="${linea.descripcion}" data-pendiente="${pendiente}">
         <td>${linea.idArticulo}</td>
         <td>${linea.descripcion}</td>
         <td>${linea.cantidadSolicitada}</td>
         <td>${despachado || '—'}</td>
-        <td><strong>${pendiente}</strong></td>
         <td class="col-disponible">${totalDisponible}${totalDisponible < pendiente ? ' ⚠️' : ''}</td>
-        <td><select class="input-classic disp-ubicacion">${opcionesUbicacion}</select></td>
-        <td><input type="number" class="input-classic disp-cantidad" value="${sugerido}" min="0" max="${pendiente}" style="width:80px;" /></td>
+        <td><select class="input-classic disp-ubicacion"${ubicacionesDisponibles.length ? '' : ' disabled'}>${opcionesUbicacion}</select></td>
+        <td>
+          <div class="disp-sale">
+            <button type="button" class="btn-classic disp-completo"${ubicacionesDisponibles.length ? '' : ' disabled'}>✓ Completo</button>
+            <input type="number" class="input-classic disp-cantidad" value="" placeholder="0" min="0" max="${pendiente}" inputmode="numeric"${ubicacionesDisponibles.length ? '' : ' disabled'} />
+          </div>
+        </td>
+        <td class="disp-falta"><strong>${pendiente}</strong></td>
       </tr>`;
   }).join('');
+
+  tbody.querySelectorAll('tr[data-id]').forEach((fila) => {
+    fila.querySelector('.disp-cantidad').addEventListener('input', () => actualizarFaltaFila(fila));
+    fila.querySelector('.disp-ubicacion').addEventListener('change', () => actualizarFaltaFila(fila));
+    fila.querySelector('.disp-completo').addEventListener('click', () => {
+      fila.querySelector('.disp-cantidad').value = fila.dataset.pendiente;
+      actualizarFaltaFila(fila);
+    });
+  });
+}
+
+function stockUbicacionFila(fila) {
+  const sel = fila.querySelector('.disp-ubicacion');
+  const opt = sel.options[sel.selectedIndex];
+  return opt ? Number(opt.dataset.disp) || 0 : 0;
+}
+
+function actualizarFaltaFila(fila) {
+  const pendiente = Number(fila.dataset.pendiente) || 0;
+  const input = fila.querySelector('.disp-cantidad');
+  let sale = parseInt(input.value, 10) || 0;
+  if (sale > pendiente) { sale = pendiente; input.value = pendiente; }
+  const falta = Math.max(pendiente - sale, 0);
+  const celda = fila.querySelector('.disp-falta');
+  celda.innerHTML = `<strong style="color:${falta > 0 ? 'var(--danger)' : 'var(--ok)'};">${falta}</strong>`;
+  const sinStock = sale > stockUbicacionFila(fila);
+  input.style.borderColor = sinStock ? 'var(--danger)' : '';
+  input.title = sinStock ? 'En esa ubicación no hay suficiente stock' : '';
+  fila.querySelector('.disp-completo').classList.toggle('btn-primary', sale > 0 && sale === pendiente);
+}
+
+// Llena cada producto con lo que hay: todo lo pedido si alcanza el stock, o lo disponible en su ubicación
+function despacharTodoLoQueHay() {
+  document.querySelectorAll('#dispatch-tbody tr[data-id]').forEach((fila) => {
+    if (fila.querySelector('.disp-cantidad').disabled) return;
+    fila.querySelector('.disp-cantidad').value = Math.min(Number(fila.dataset.pendiente) || 0, stockUbicacionFila(fila));
+    actualizarFaltaFila(fila);
+  });
 }
 
 function confirmarDespacho() {
   const numero = document.getElementById('dispatch-panel').dataset.numero;
   const lineas = [];
+  const sinStock = [];
 
   document.querySelectorAll('#dispatch-tbody tr[data-id]').forEach((fila) => {
     const cantidad = parseInt(fila.querySelector('.disp-cantidad').value, 10) || 0;
     if (cantidad <= 0) return;
+    if (cantidad > stockUbicacionFila(fila)) sinStock.push(fila.dataset.descripcion);
     lineas.push({
       idArticulo: fila.dataset.id,
       descripcion: fila.dataset.descripcion,
@@ -356,7 +405,10 @@ function confirmarDespacho() {
     });
   });
 
-  if (!lineas.length) { alert('No hay cantidades a despachar.'); return; }
+  if (!lineas.length) { alert('No hay cantidades a despachar. Toca "✓ Completo" o escribe cuánto sale.'); return; }
+  if (sinStock.length) { alert('En la ubicación elegida no hay suficiente stock de:\n- ' + sinStock.join('\n- ') + '\n\nCambia la ubicación o pon una cantidad menor.'); return; }
+  const resumen = lineas.map((l) => `${l.descripcion}: ${l.cantidadDespachar}`).join('\n');
+  if (!confirm('¿Confirmas que sale esto en el camión?\n\n' + resumen)) return;
 
   const confirmBtn = document.getElementById('dispatch-confirm');
   confirmBtn.textContent = 'Procesando…';
@@ -390,8 +442,9 @@ function mostrarGuia(numero, guia, idDespacho, estado) {
     (idDespacho ? idDespacho + ' · ' : '') + 'Orden ' + numero + (estado ? ' (' + estado + ')' : '');
   document.getElementById('guia-fecha').textContent = new Date().toLocaleString();
   document.getElementById('guia-solicitante').textContent = 'Solicitante: ' + (orden ? orden.solicitante : '');
+  // Solo lo que sube al camión, con una casilla para marcar al cargar
   document.getElementById('guia-tbody').innerHTML = guia.map((g) => `
-    <tr><td>${g.id}</td><td>${g.descripcion}</td><td>${g.cantidad}</td><td>${g.ubicacion}</td></tr>
+    <tr><td>${g.id}</td><td>${g.descripcion}</td><td><strong>${g.cantidad}</strong></td><td>${g.ubicacion}</td><td style="width:40px;"></td></tr>
   `).join('');
   document.getElementById('guia-panel').classList.add('show');
 }
