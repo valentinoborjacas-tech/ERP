@@ -431,7 +431,37 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   body *{ visibility:hidden; }
   #guia-print, #guia-print *{ visibility:visible; }
   #guia-print{ position:absolute; top:0; left:0; width:100%; }
+  /* Al imprimir la hoja de la orden, solo se ve la hoja */
+  body.imprimiendo-hoja #guia-print, body.imprimiendo-hoja #guia-print *{ visibility:hidden; }
+  body.imprimiendo-hoja #hoja-print{ display:block; }
+  body.imprimiendo-hoja #hoja-print, body.imprimiendo-hoja #hoja-print *{ visibility:visible; }
+  #hoja-print{ position:absolute; top:0; left:0; width:100%; }
 }
+
+/* Hoja de la orden (mismo formato que la de cobranzas) */
+#hoja-print{ display:none; }
+.hoja{ font-family:Arial, Helvetica, sans-serif; color:#000; max-width:760px; margin:0 auto; }
+.hoja table{ width:100%; border-collapse:collapse; margin-bottom:8px; }
+.hoja td, .hoja th{ border:1px solid #000; }
+.hoja-head td{ padding:6px 8px; font-size:13px; }
+.hoja-head td span{ display:block; font-size:9.5px; font-weight:700; text-transform:uppercase; }
+.hoja-logo{ width:150px; text-align:center; }
+.hoja-logo img{ max-width:115px; max-height:76px; }
+.hoja-titulo{ text-align:center; font-size:20px !important; font-weight:700; padding:12px 8px !important; }
+.hoja-datos th, .hoja-items th{ background:#ebebeb; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+.hoja-datos th{ width:105px; text-align:left; font-size:11px; padding:5px 6px; }
+.hoja-datos td{ font-size:12px; padding:5px 6px; }
+.hoja-items th{ font-size:11px; padding:4px; }
+.hoja-items td{ height:29px; padding:2px 5px; font-size:12px; }
+.hoja-items tr{ break-inside:avoid; page-break-inside:avoid; }
+.hoja-centro{ text-align:center; }
+.hoja-num{ text-align:right; font-weight:700; }
+.hoja-obs{ border:1px solid #000; min-height:58px; padding:5px 6px; font-size:12px; margin-bottom:8px; break-inside:avoid; }
+.hoja-obs strong{ display:block; font-size:11px; margin-bottom:3px; }
+.hoja-firmas{ display:flex; break-inside:avoid; }
+.hoja-firmas div{ flex:1; height:84px; border:1px solid #000; margin-left:-1px; padding:5px 6px; display:flex; flex-direction:column; justify-content:space-between; font-size:12px; }
+.hoja-firmas div:first-child{ margin-left:0; }
+.hoja-firmas strong{ font-size:11px; }
 .btn-ingreso {
   background: #2E7D32 !important;
   border-color: #1B5E20 !important;

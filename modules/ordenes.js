@@ -89,7 +89,8 @@ function ordenRowHtml(o) {
   const botonVer = o.estado === 'Pendiente'
     ? ''
     : `<button class="btn-classic" style="padding:3px 8px; font-size:11.5px;" data-action="ver" data-numero="${o.numero}">👁 Ver</button>`;
-  const accion = `<div class="row-actions" style="flex-wrap:wrap;">${botonDespacho}${botonVer}</div>`;
+  const botonHoja = `<button class="btn-classic" style="padding:3px 8px; font-size:11.5px;" data-action="hoja" data-numero="${o.numero}" title="Imprimir la hoja de la orden">🖨 Hoja</button>`;
+  const accion = `<div class="row-actions" style="flex-wrap:wrap;">${botonDespacho}${botonVer}${botonHoja}</div>`;
 
   return `
     <tr>
@@ -105,7 +106,9 @@ function handleOrdenesClick(e) {
   const btn = e.target.closest('[data-action="preparar"]');
   if (btn) { abrirDespacho(btn.dataset.numero); return; }
   const btnVer = e.target.closest('[data-action="ver"]');
-  if (btnVer) abrirVerOrden(btnVer.dataset.numero);
+  if (btnVer) { abrirVerOrden(btnVer.dataset.numero); return; }
+  const btnHoja = e.target.closest('[data-action="hoja"]');
+  if (btnHoja) imprimirHojaOrden(btnHoja.dataset.numero);
 }
 
 // ---------- Ver una orden ya despachada (solo consulta) ----------
@@ -433,6 +436,103 @@ function confirmarDespacho() {
       confirmBtn.textContent = '✔ Confirmar despacho';
       confirmBtn.disabled = false;
     });
+}
+
+// ---------- Hoja de la orden para imprimir desde la tablet ----------
+// Es la misma hoja que se imprime en cobranzas (Pedido | Sale | ✓ | Falta), armada con los
+// datos que ya tiene el ERP. Las órdenes que vienen de cobranzas traen la referencia
+// "OP-CP-0001" / "OP-VS-0001" en el solicitante y sus datos en las observaciones.
+const HOJA_EMPRESAS = {
+  CP: { nombre: 'CASCONIPLAST S.R.L.', ruc: '20506789207', telefono: '+51 965 407 676', logo: 'assets/logo-casconiplast.png' },
+  VS: { nombre: 'V&S POLI BAGS', ruc: '20547366817', telefono: '+51 965 407 676', logo: '' }
+};
+const HOJA_FILAS_MIN = 14;
+
+function escHoja(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+// "OP-CP-0001 · SSAYS · Sede Herrera" + "Cliente: SSAYS · Sede: Herrera · Entrega: 30/10/2026 · OC cliente: 123 · Creada por: x · notas"
+function datosHojaOrden(orden) {
+  const ref = (String(orden.solicitante || '').match(/^OP-(CP|VS)-\d+/) || [])[0] || '';
+  const datos = { referencia: ref || '—', empresa: HOJA_EMPRESAS[ref.slice(3, 5)] || null, cliente: '', sede: '', entrega: '', oc: '', creadaPor: '', notas: [] };
+  String(orden.observaciones || '').split(' · ').forEach((parte, i) => {
+    const m = parte.match(/^(Cliente|Sede|Entrega|OC cliente|Creada por):\s*(.*)$/);
+    if (m) datos[{ 'Cliente': 'cliente', 'Sede': 'sede', 'Entrega': 'entrega', 'OC cliente': 'oc', 'Creada por': 'creadaPor' }[m[1]]] = m[2];
+    else if (!(ref && i === 0)) datos.notas.push(parte); // la 1.ª parte es "Orden de pedido 0001 (…)"
+  });
+  if (!datos.cliente) datos.cliente = orden.solicitante || '';
+  return datos;
+}
+
+function imprimirHojaOrden(numero) {
+  const orden = ordenesData.find((o) => o.numero === numero);
+  if (!orden) return;
+  const cont = document.getElementById('hoja-print');
+  cont.innerHTML = '';
+
+  fetch(`${API_URL}?action=orden_detalle&numero=${encodeURIComponent(numero)}&_=${Date.now()}`, { cache: 'no-store' })
+    .then((r) => r.json())
+    .then((detalle) => {
+      const d = datosHojaOrden(orden);
+      const conDespachos = detalle.some((l) => (Number(l.cantidadDespachada) || 0) > 0);
+      const fmt = (n) => (Number(n) || 0).toLocaleString('es-PE');
+      const colsMano = '<td></td><td></td><td></td>';
+      let filas = detalle.map((l, i) => {
+        const pedido = Number(l.cantidadSolicitada) || 0;
+        const salio = Number(l.cantidadDespachada) || 0;
+        return `<tr><td class="hoja-centro">${i + 1}</td><td>${escHoja(l.idArticulo)}</td><td>${escHoja(l.descripcion)}</td>` +
+          `<td class="hoja-num">${fmt(pedido)}</td>` +
+          (conDespachos ? `<td class="hoja-num">${salio ? fmt(salio) : '—'}</td><td class="hoja-num">${fmt(Math.max(pedido - salio, 0))}</td>` : '') +
+          colsMano + '</tr>';
+      }).join('');
+      const vacia = '<tr><td></td><td></td><td></td><td></td>' + (conDespachos ? '<td></td><td></td>' : '') + colsMano + '</tr>';
+      for (let i = detalle.length; i < HOJA_FILAS_MIN; i++) filas += vacia;
+
+      const fecha = orden.fecha ? new Date(orden.fecha).toLocaleDateString('es-PE') : '';
+      cont.innerHTML = `
+        <div class="hoja">
+          <table class="hoja-head"><tbody>
+            <tr>
+              <td class="hoja-logo" rowspan="2">${d.empresa && d.empresa.logo ? `<img src="${d.empresa.logo}" alt="${escHoja(d.empresa.nombre)}">` : `<strong>${escHoja(d.empresa ? d.empresa.nombre : 'SGA-Almacén')}</strong>`}</td>
+              <td class="hoja-titulo" colspan="3">ORDEN DE PEDIDO</td>
+            </tr>
+            <tr>
+              <td><span>N.º ERP</span>${escHoja(orden.numero)}</td>
+              <td><span>Referencia</span>${escHoja(d.referencia)}</td>
+              <td><span>Fecha</span>${fecha}</td>
+            </tr>
+          </tbody></table>
+          <table class="hoja-datos"><tbody>
+            <tr><th>Cliente</th><td>${escHoja(d.cliente)}</td><th>Orden de compra</th><td>${escHoja(d.oc || '—')}</td></tr>
+            <tr><th>Sede / entrega</th><td>${escHoja(d.sede || '—')}</td><th>Fecha de entrega</th><td>${escHoja(d.entrega || '—')}</td></tr>
+            <tr><th>Empresa</th><td>${d.empresa ? escHoja(d.empresa.nombre + ' · RUC ' + d.empresa.ruc) : '—'}</td><th>Estado</th><td>${escHoja(orden.estado)}</td></tr>
+          </tbody></table>
+          <table class="hoja-items">
+            <thead><tr>
+              <th style="width:30px;">Ítem</th><th style="width:50px;">Código</th><th>Producto</th><th style="width:66px;">Pedido</th>
+              ${conDespachos ? '<th style="width:66px;">Ya salió</th><th style="width:66px;">Pendiente</th>' : ''}
+              <th style="width:${conDespachos ? 82 : 100}px;">Sale (o Completo)</th><th style="width:30px;">✓</th><th style="width:${conDespachos ? 66 : 80}px;">Falta</th>
+            </tr></thead>
+            <tbody>${filas}</tbody>
+          </table>
+          <div class="hoja-obs"><strong>Observaciones</strong><div>${escHoja(d.notas.join(' · '))}</div></div>
+          <div class="hoja-firmas">
+            <div><strong>Solicitado por</strong><span>${escHoja(d.creadaPor)}</span></div>
+            <div><strong>Autorizado por</strong><span></span></div>
+            <div><strong>Recibido por (Almacén)</strong><span></span></div>
+          </div>
+        </div>`;
+
+      // Imprime solo la hoja (el CSS de impresión oculta todo lo demás)
+      document.body.classList.add('imprimiendo-hoja');
+      const quitar = () => { document.body.classList.remove('imprimiendo-hoja'); window.removeEventListener('afterprint', quitar); };
+      window.addEventListener('afterprint', quitar);
+      const img = cont.querySelector('img');
+      const imprimir = () => setTimeout(() => window.print(), 100);
+      if (img && !img.complete) { img.onload = imprimir; img.onerror = imprimir; } else imprimir();
+    })
+    .catch((err) => alert('No se pudo cargar la orden: ' + err.message));
 }
 
 // ---------- Guía imprimible ----------
