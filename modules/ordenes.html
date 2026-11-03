@@ -138,18 +138,8 @@
     <span class="quick-panel-title">Guía de salida generada</span>
     <span class="quick-panel-close" id="guia-panel-close">✕ Cerrar</span>
   </div>
-  <div id="guia-print">
-    <div style="text-align:center; margin-bottom:14px;">
-      <div style="font-size:16px; font-weight:bold;">GUÍA DE SALIDA</div>
-      <div id="guia-numero" style="font-size:13px;"></div>
-      <div id="guia-fecha" style="font-size:11px; color:#666;"></div>
-      <div id="guia-solicitante" style="font-size:12px; margin-top:4px;"></div>
-    </div>
-    <table class="data-grid">
-      <thead><tr><th>ID</th><th>Descripción</th><th>Cantidad</th><th>Ubicación</th><th>✓</th></tr></thead>
-      <tbody id="guia-tbody"></tbody>
-    </table>
-  </div>
+  <!-- Se llena con mostrarGuia() en el mismo formato con cuadrícula de la hoja de la orden -->
+  <div id="guia-print" class="hoja-preview"></div>
   <div class="flex justify-end gap-2 mt-3">
     <button class="btn-classic btn-primary" id="guia-imprimir">🖨️ Imprimir guía</button>
   </div>

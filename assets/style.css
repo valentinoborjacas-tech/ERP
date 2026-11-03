@@ -428,15 +428,15 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   font-size:11px; display:block; margin-bottom:2px; font-weight:bold; color:#555;
 }
 
+/* Impresión de hoja y guía: imprimirDocumento() copia el documento a #print-root (hijo directo
+   del body) y aquí se oculta todo lo demás con display:none, para que no salga una página en
+   blanco extra. Las clases .hoja-* no usan .data-grid, así el diseño de celular no las afecta. */
+#print-root{ display:none; }
+@page{ size:A4; margin:12mm; }
 @media print {
-  body *{ visibility:hidden; }
-  #guia-print, #guia-print *{ visibility:visible; }
-  #guia-print{ position:absolute; top:0; left:0; width:100%; }
-  /* Al imprimir la hoja de la orden, solo se ve la hoja */
-  body.imprimiendo-hoja #guia-print, body.imprimiendo-hoja #guia-print *{ visibility:hidden; }
-  body.imprimiendo-hoja #hoja-print{ display:block; }
-  body.imprimiendo-hoja #hoja-print, body.imprimiendo-hoja #hoja-print *{ visibility:visible; }
-  #hoja-print{ position:absolute; top:0; left:0; width:100%; }
+  body.imprimiendo > *:not(#print-root){ display:none !important; }
+  body.imprimiendo #print-root{ display:block; }
+  body.imprimiendo{ background:#fff !important; padding:0 !important; margin:0 !important; }
 }
 
 /* Hoja de la orden (mismo formato que la de cobranzas) */
@@ -547,7 +547,9 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
 .disp-sale{ display:flex; gap:6px; align-items:center; }
 .disp-sale .disp-cantidad{ width:80px; }
 .disp-sale button:disabled, .disp-sale input:disabled{ opacity:.45; cursor:not-allowed; }
-#guia-print table.data-grid td{ border:1px solid #333; }
+/* Vista previa de la guía en pantalla (el panel), con el mismo formato que se imprime */
+.hoja-preview{ background:#fff; padding:10px; overflow-x:auto; }
+.hoja-items tfoot th{ background:#ebebeb; font-size:12px; padding:5px; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 
 /* Tablet (vertical u horizontal): el stock por ubicación ya se ve en el selector, se oculta la columna total */
 @media (pointer: coarse) and (max-width: 1100px){

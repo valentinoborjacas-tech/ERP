@@ -35,7 +35,7 @@ window.initOrdenesModule = function () {
   document.getElementById('guia-panel-close').addEventListener('click', () => {
   document.getElementById('guia-panel').classList.remove('show');
   });
-  document.getElementById('guia-imprimir').addEventListener('click', () => window.print());
+  document.getElementById('guia-imprimir').addEventListener('click', () => imprimirDocumento(document.getElementById('guia-print').innerHTML));
   document.getElementById('btn-subir-oc').addEventListener('click', () => {
   document.getElementById('oc-panel').classList.add('show');
   });
@@ -190,7 +190,7 @@ function renderVerOrdenDespachos(lineas) {
     btn.addEventListener('click', () => {
       const delDespacho = despachosVista.filter((l) => l.idDespacho === btn.dataset.reimprimir);
       const guia = delDespacho.map((l) => ({ id: l.idArticulo, descripcion: l.descripcion, cantidad: l.cantidad, ubicacion: l.idUbicacion }));
-      mostrarGuia(delDespacho[0].numero, guia, btn.dataset.reimprimir);
+      mostrarGuia(delDespacho[0].numero, guia, btn.dataset.reimprimir, null, delDespacho[0].fecha);
       document.getElementById('guia-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
@@ -594,28 +594,76 @@ function imprimirHojaOrden(numero) {
           <div class="hoja-impreso">Actualizado al ${new Date().toLocaleString('es-PE')}</div>
         </div>`;
 
-      // Imprime solo la hoja (el CSS de impresión oculta todo lo demás)
-      document.body.classList.add('imprimiendo-hoja');
-      const quitar = () => { document.body.classList.remove('imprimiendo-hoja'); window.removeEventListener('afterprint', quitar); };
-      window.addEventListener('afterprint', quitar);
-      const img = cont.querySelector('img');
-      const imprimir = () => setTimeout(() => window.print(), 100);
-      if (img && !img.complete) { img.onload = imprimir; img.onerror = imprimir; } else imprimir();
+      imprimirDocumento(cont.innerHTML);
     })
     .catch((err) => alert('No se pudo cargar la orden: ' + err.message));
 }
 
-// ---------- Guía imprimible ----------
-function mostrarGuia(numero, guia, idDespacho, estado) {
-  const orden = ordenesData.find((o) => o.numero === numero);
-  document.getElementById('guia-numero').textContent =
-    (idDespacho ? idDespacho + ' · ' : '') + 'Orden ' + numero + (estado ? ' (' + estado + ')' : '');
-  document.getElementById('guia-fecha').textContent = new Date().toLocaleString();
-  document.getElementById('guia-solicitante').textContent = 'Solicitante: ' + (orden ? orden.solicitante : '');
-  // Solo lo que sube al camión, con una casilla para marcar al cargar
-  document.getElementById('guia-tbody').innerHTML = guia.map((g) => `
-    <tr><td>${g.id}</td><td>${g.descripcion}</td><td><strong>${g.cantidad}</strong></td><td>${g.ubicacion}</td><td style="width:40px;"></td></tr>
-  `).join('');
+// Imprime solo un documento (hoja u guía). Se copia a un contenedor directo del <body> y,
+// al imprimir, se oculta todo lo demás con display:none: así no sale una página en blanco
+// extra ni se aplica el diseño de celular a las tablas.
+function imprimirDocumento(html) {
+  let raiz = document.getElementById('print-root');
+  if (!raiz) {
+    raiz = document.createElement('div');
+    raiz.id = 'print-root';
+    document.body.appendChild(raiz);
+  }
+  raiz.innerHTML = html;
+  document.body.classList.add('imprimiendo');
+  const quitar = () => { document.body.classList.remove('imprimiendo'); window.removeEventListener('afterprint', quitar); };
+  window.addEventListener('afterprint', quitar);
+  const img = raiz.querySelector('img');
+  const imprimir = () => setTimeout(() => window.print(), 100);
+  if (img && !img.complete) { img.onload = imprimir; img.onerror = imprimir; } else imprimir();
+}
+
+// ---------- Guía de salida: solo lo que sube al camión ----------
+function mostrarGuia(numero, guia, idDespacho, estado, fechaDespacho) {
+  const orden = ordenesData.find((o) => o.numero === numero) || { numero, solicitante: '', observaciones: '' };
+  const d = datosHojaOrden(orden);
+  const fmt = (n) => (Number(n) || 0).toLocaleString('es-PE');
+  const fecha = new Date(fechaDespacho || Date.now()).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const total = guia.reduce((s, g) => s + (Number(g.cantidad) || 0), 0);
+  const filas = guia.map((g, i) => `
+    <tr>
+      <td class="hoja-centro">${i + 1}</td><td>${escHoja(g.id)}</td><td>${escHoja(g.descripcion)}</td>
+      <td class="hoja-num">${fmt(g.cantidad)}</td><td>${escHoja(g.ubicacion)}</td><td></td>
+    </tr>`).join('');
+
+  document.getElementById('guia-print').innerHTML = `
+    <div class="hoja">
+      <table class="hoja-head"><tbody>
+        <tr>
+          <td class="hoja-logo" rowspan="2">${d.empresa && d.empresa.logo ? `<img src="${d.empresa.logo}" alt="${escHoja(d.empresa.nombre)}">` : `<strong>${escHoja(d.empresa ? d.empresa.nombre : 'SGA-Almacén')}</strong>`}</td>
+          <td class="hoja-titulo" colspan="3">GUÍA DE SALIDA</td>
+        </tr>
+        <tr>
+          <td><span>N.º de despacho</span>${escHoja(idDespacho || '—')}</td>
+          <td><span>Orden</span>${escHoja(numero)}${d.referencia !== '—' ? ' · ' + escHoja(d.referencia) : ''}</td>
+          <td><span>Fecha y hora</span>${fecha}</td>
+        </tr>
+      </tbody></table>
+      <table class="hoja-datos"><tbody>
+        <tr><th>Cliente</th><td>${escHoja(d.cliente)}</td><th>Sede / entrega</th><td>${escHoja(d.sede || '—')}</td></tr>
+        <tr><th>Orden de compra</th><td>${escHoja(d.oc || '—')}</td><th>Empresa</th><td>${d.empresa ? escHoja(d.empresa.nombre + ' · RUC ' + d.empresa.ruc) : '—'}</td></tr>
+        ${estado ? `<tr><th>Estado de la orden</th><td colspan="3">${escHoja(estado)}</td></tr>` : ''}
+      </tbody></table>
+      <table class="hoja-items">
+        <thead><tr>
+          <th style="width:30px;">Ítem</th><th style="width:50px;">Código</th><th>Producto</th>
+          <th style="width:80px;">Cantidad</th><th style="width:96px;">Ubicación</th><th style="width:34px;">✓</th>
+        </tr></thead>
+        <tbody>${filas}</tbody>
+        <tfoot><tr><th colspan="3" style="text-align:right;">Total</th><th class="hoja-num">${fmt(total)}</th><th colspan="2"></th></tr></tfoot>
+      </table>
+      <div class="hoja-obs"><strong>Observaciones</strong><div>${escHoja(d.notas.join(' · '))}</div></div>
+      <div class="hoja-firmas">
+        <div><strong>Despachado por (Almacén)</strong><span></span></div>
+        <div><strong>Transportista / placa</strong><span></span></div>
+        <div><strong>Recibido por (Cliente)</strong><span></span></div>
+      </div>
+    </div>`;
   document.getElementById('guia-panel').classList.add('show');
 }
 // ---------- Subir OC desde Excel y verificar stock ----------
