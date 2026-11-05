@@ -240,7 +240,7 @@ function asignarUbicacion(data) {
       const nuevo = (Number(values[i][colStock]) || 0) + stockInicial;
       ubicSheet.getRange(i + 1, colStock + 1).setValue(nuevo);
       ubicSheet.getRange(i + 1, colFecha + 1).setValue(ahora);
-      registrarIngreso('Ingreso en ' + idUbicacion);
+      registrarIngreso(data.motivo || ('Ingreso en ' + idUbicacion));
       invalidarCacheStock();
       return { ok: true, id_ubicacion: idUbicacion, disponible: nuevo, sumado: true };
     }
@@ -258,7 +258,7 @@ function asignarUbicacion(data) {
   nuevaFila[colStock] = stockInicial;
   nuevaFila[colFecha] = ahora;
   ubicSheet.appendRow(nuevaFila);
-  registrarIngreso(data.almacen === ALMACEN_PISO ? 'Ingreso a palet en piso' : 'Ingreso con ubicación nueva');
+  registrarIngreso(data.motivo || (data.almacen === ALMACEN_PISO ? 'Ingreso a palet en piso' : 'Ingreso con ubicación nueva'));
   invalidarCacheStock();
 
   return { ok: true, id_ubicacion: idUbicacion, disponible: stockInicial };
@@ -619,19 +619,36 @@ function asegurarColumna(sheet, nombre) {
   return i + 1;
 }
 
+// Origen de una manga: llega con guía del proveedor, o se agrega por ajuste de inventario
+// (mangas encontradas que no estaban en el sistema y no se sabe de quién vienen).
+const ORIGEN_GUIA = 'Guía';
+const ORIGEN_AJUSTE = 'Ajuste de inventario';
+
 function ingresarBovinas(data) {
-  // data: { id_material, pesos:[...], proveedor, almacenero, zona }
+  // data: { id_material, pesos:[...], proveedor, almacenero, zona, origen, guia, observacion }
   if (!data.id_material || !data.pesos || !data.pesos.length) {
     return { ok: false, error: 'Faltan datos (material o pesos)' };
   }
   const zona = String(data.zona || '').trim();
   if (zona && ZONAS_VALIDAS.indexOf(zona) === -1) return { ok: false, error: 'Zona inválida' };
+  const origen = String(data.origen || '').trim();
+  const guia = String(data.guia || '').trim();
+  const observacion = String(data.observacion || '').trim();
+  if (origen === ORIGEN_GUIA && (!guia || !String(data.proveedor || '').trim())) {
+    return { ok: false, error: 'Para ingresar con guía, indica el N.º de guía y el proveedor.' };
+  }
+  if (origen === ORIGEN_AJUSTE && !observacion) {
+    return { ok: false, error: 'Para un ajuste de inventario, escribe el motivo (dónde se encontró, etc.).' };
+  }
 
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     const bovSheet = getSheet(SHEET_BOVINAS);
     asegurarColumna(bovSheet, 'ZONA');
+    asegurarColumna(bovSheet, 'ORIGEN');
+    asegurarColumna(bovSheet, 'GUIA');
+    asegurarColumna(bovSheet, 'OBSERVACION');
     const colFecha = columnaFechaBovinas(bovSheet);
     const nCols = bovSheet.getLastColumn();
     const headers = bovSheet.getRange(1, 1, 1, nCols).getValues()[0].map(String);
@@ -648,10 +665,19 @@ function ingresarBovinas(data) {
       put('PESO_INICIAL', peso); put('PESO_ACTUAL', peso);
       put('PROVEEDOR', data.proveedor || ''); put('ALMACENERO', data.almacenero || '');
       put('ESTADO', 'Disponible'); put('ZONA', zona);
+      put('ORIGEN', origen); put('GUIA', guia); put('OBSERVACION', observacion);
       fila[colFecha - 1] = ahora; // fecha de ingreso, para contar los días en almacén
       return fila;
     });
     bovSheet.getRange(lastRow + 1, 1, filas.length, nCols).setValues(filas);
+
+    // Las altas sin guía quedan también en AJUSTES, para auditar cuántas entran así
+    if (origen === ORIGEN_AJUSTE) {
+      const ajustes = getHojaAjustes();
+      creadas.forEach(function (id, i) {
+        ajustes.appendRow([ahora, 'ALTA SIN GUIA', data.id_material, id, '', data.pesos[i], data.almacenero || '', observacion]);
+      });
+    }
 
     invalidarCacheStock();
     return { ok: true, bovinasCreadas: creadas };
@@ -696,6 +722,7 @@ function getBovinas(idMaterial) {
       return {
         idBovina: b.ID_BOVINA, proveedor: b.PROVEEDOR || '', almacenero: b.ALMACENERO || '',
         zona: b.ZONA || '',
+        origen: b.ORIGEN || '', guia: b.GUIA || '', observacion: b.OBSERVACION || '',
         fecha: fechaIngresoBovina(b), pesoInicial: Number(b.PESO_INICIAL) || 0,
         pesoActual: Number(b.PESO_ACTUAL) || 0, nCorridas: corridas[b.ID_BOVINA] || 0, estado: estado
       };

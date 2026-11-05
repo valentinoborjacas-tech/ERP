@@ -17,6 +17,33 @@
     <span class="quick-panel-title">Ingresar bovinas</span>
     <span class="quick-panel-close" id="mp-ingreso-close">✕ Cerrar</span>
   </div>
+
+  <!-- Origen del ingreso: con guía del proveedor (lo normal) o por ajuste de inventario -->
+  <div class="mp-origen" role="radiogroup" aria-label="Origen del ingreso">
+    <label class="mp-origen-opcion"><input type="radio" name="mp-origen" value="Guía" checked> 📄 Con guía del proveedor</label>
+    <label class="mp-origen-opcion"><input type="radio" name="mp-origen" value="Ajuste de inventario"> 🔎 Ajuste de inventario (sin guía)</label>
+  </div>
+
+  <div id="mp-campos-guia" class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+    <div>
+      <label class="field-label">N.º de guía <span class="required-mark">*</span></label>
+      <input class="input-classic" id="mp-guia" placeholder="Ej. 001-4587" autocomplete="off" />
+    </div>
+    <div>
+      <label class="field-label">Peso total según la guía (kg)</label>
+      <input type="number" class="input-classic" id="mp-peso-guia" placeholder="Opcional, para comparar" min="0" step="0.1" />
+    </div>
+    <div class="md:col-span-2" id="mp-comparacion-guia" style="display:none;"></div>
+  </div>
+
+  <div id="mp-campos-ajuste" class="mb-3" style="display:none;">
+    <div class="help-banner" style="margin-bottom:8px;">
+      <span>⚠️</span><span>Solo para mangas encontradas que no estaban en el sistema. Quedan marcadas como <b>ajuste de inventario</b>.</span>
+    </div>
+    <label class="field-label">Motivo / dónde se encontró <span class="required-mark">*</span></label>
+    <input class="input-classic" id="mp-motivo-ajuste" placeholder="Ej. Encontrada en Zona 3 durante el conteo" maxlength="120" />
+  </div>
+
    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
     <div style="position:relative;">
       <label class="field-label">ID de Bovina</label>
@@ -43,9 +70,9 @@
       <input class="input-classic" id="mp-almacenero-otro" placeholder="Escribe el nombre" style="margin-top:6px; display:none;" />
     </div>
     <div>
-      <label class="field-label">Proveedor</label>
+      <label class="field-label">Proveedor <span class="required-mark" id="mp-proveedor-obligatorio">*</span></label>
       <select class="input-classic" id="mp-proveedor-select">
-        <option value="">— (opcional) —</option>
+        <option value="">— Selecciona —</option>
         <option value="GIO PLAST">GIO PLAST</option>
         <option value="ELVIS">ELVIS</option>
         <option value="HUAMANI">HUAMANI</option>
@@ -68,6 +95,14 @@
     <button class="btn-classic btn-primary" id="mp-ingreso-confirm">✔ Registrar ingreso</button>
   </div>
 </div>
+<style>
+  .mp-origen{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .mp-origen-opcion{ flex:1; min-width:220px; display:flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid var(--border-mid); border-radius:4px; background:#fff; cursor:pointer; font-weight:bold; }
+  .mp-origen-opcion:has(input:checked){ border-color:var(--accent); background:#e7f0fb; }
+  .mp-comp{ padding:8px 10px; border-radius:4px; font-size:13px; }
+  .mp-comp-ok{ background:#eaf5ea; color:var(--ok); }
+  .mp-comp-dif{ background:#fdf3dc; color:#7a5a00; }
+</style>
 <div class="quick-panel" id="mp-importar-panel">
   <div style="display:flex;justify-content:space-between;align-items:center;">
     <b style="color:#1a3f7a;">Importar mangas desde Excel</b>
@@ -82,9 +117,18 @@
       <select id="mp-imp-almacenero" class="input-classic">
         <option value="">— Selecciona —</option><option>Jacky</option><option>Valentino</option>
       </select></div>
+    <div><label class="field-label">Origen <span class="required-mark">*</span></label><br>
+      <select id="mp-imp-origen" class="input-classic">
+        <option value="Guía">📄 Con guía del proveedor</option>
+        <option value="Ajuste de inventario">🔎 Ajuste de inventario</option>
+      </select></div>
+    <div id="mp-imp-guia-box"><label class="field-label">N.º de guía <span class="required-mark">*</span></label><br>
+      <input id="mp-imp-guia" class="input-classic" placeholder="Ej. 001-4587" style="width:130px;" /></div>
+    <div id="mp-imp-motivo-box" style="display:none;"><label class="field-label">Motivo <span class="required-mark">*</span></label><br>
+      <input id="mp-imp-motivo" class="input-classic" placeholder="Ej. Conteo de inventario" style="width:220px;" maxlength="120" /></div>
     <div><label class="field-label">Proveedor</label><br>
       <select id="mp-imp-proveedor" class="input-classic">
-               <option value="">— (opcional) —</option><option>GIO PLAST</option><option>ELVIS</option><option>HUAMANI</option>
+               <option value="">— Selecciona —</option><option>GIO PLAST</option><option>ELVIS</option><option>HUAMANI</option>
       </select></div>
     <div><label class="field-label">Zona <span class="required-mark">*</span></label><br>
       <select id="mp-imp-zona" class="input-classic">
@@ -224,7 +268,7 @@
   </div>
   <div class="table-scroll" style="max-height:220px;">
     <table class="data-grid">
-        <thead><tr><th>Fecha</th><th title="Días desde que ingresó la manga">Días en almacén</th><th>ID Bovina</th><th>Almacenero</th><th>Proveedor</th><th>Zona</th><th>Peso ingresado</th><th>Peso actual</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <thead><tr><th>Fecha</th><th title="Días desde que ingresó la manga">Días en almacén</th><th>ID Bovina</th><th>Almacenero</th><th>Proveedor</th><th>Guía / origen</th><th>Zona</th><th>Peso ingresado</th><th>Peso actual</th><th>Estado</th><th>Acciones</th></tr></thead>
       <tbody id="mp-bovinas-tbody"></tbody>
     </table>
   </div>

@@ -181,6 +181,58 @@ function handleTableClick(e) {
   }
 }
 
+// ====== Origen de un ingreso de bolsas ======
+// Todo ingreso debe decir de dónde viene y con qué documento, para la trazabilidad.
+const ORIGENES_INGRESO = {
+  'Producción propia':     { campo: 'N.º de ticket / parte de producción', ejemplo: 'Ej. TK-0153' },
+  'Guía de proveedor':     { campo: 'N.º de guía', ejemplo: 'Ej. 001-4587', proveedor: true },
+  'Devolución de cliente': { campo: 'Cliente y N.º de guía de devolución', ejemplo: 'Ej. SSAYS · 002-118' },
+  'Ajuste de inventario':  { campo: 'Motivo del ajuste', ejemplo: 'Ej. Encontrado en conteo, palet junto a F2' }
+};
+
+function renderOrigenIngreso(contenedorId, prefijo) {
+  const ultimo = localStorage.getItem('stock_ultimo_origen') || 'Producción propia';
+  document.getElementById(contenedorId).innerHTML = `
+    <div class="flex items-end gap-3 quick-panel-row" style="flex-wrap:wrap; margin-top:8px;">
+      <div class="quick-panel-field" style="width:200px;">
+        <label class="field-label">Origen del ingreso <span class="required-mark">*</span></label>
+        <select class="input-classic" id="${prefijo}-origen">
+          ${Object.keys(ORIGENES_INGRESO).map((o) => `<option${o === ultimo ? ' selected' : ''}>${o}</option>`).join('')}
+        </select>
+      </div>
+      <div class="quick-panel-field" style="flex:1; min-width:200px;">
+        <label class="field-label" id="${prefijo}-doc-label"></label>
+        <input class="input-classic" id="${prefijo}-doc" maxlength="80" />
+      </div>
+      <div class="quick-panel-field" style="width:180px;" id="${prefijo}-prov-box">
+        <label class="field-label">Proveedor <span class="required-mark">*</span></label>
+        <input class="input-classic" id="${prefijo}-prov" maxlength="40" />
+      </div>
+    </div>`;
+  const actualizar = () => {
+    const o = ORIGENES_INGRESO[document.getElementById(`${prefijo}-origen`).value];
+    document.getElementById(`${prefijo}-doc-label`).innerHTML = `${o.campo} <span class="required-mark">*</span>`;
+    document.getElementById(`${prefijo}-doc`).placeholder = o.ejemplo;
+    document.getElementById(`${prefijo}-prov-box`).style.display = o.proveedor ? '' : 'none';
+  };
+  document.getElementById(`${prefijo}-origen`).addEventListener('change', actualizar);
+  actualizar();
+}
+
+// Devuelve { motivo } para guardar en el historial, o { error } si falta un dato
+function leerOrigenIngreso(prefijo) {
+  const origen = document.getElementById(`${prefijo}-origen`).value;
+  const o = ORIGENES_INGRESO[origen];
+  const doc = document.getElementById(`${prefijo}-doc`).value.trim();
+  const prov = document.getElementById(`${prefijo}-prov`).value.trim();
+  if (!doc) return { error: 'Completa: ' + o.campo };
+  if (o.proveedor && !prov) return { error: 'Escribe el proveedor de la guía.' };
+  localStorage.setItem('stock_ultimo_origen', origen);
+  const partes = [origen, (origen === 'Guía de proveedor' ? 'Guía ' : '') + doc];
+  if (o.proveedor) partes.push(prov.toUpperCase());
+  return { motivo: partes.join(' · ') };
+}
+
 function openQuickPanel() {
   const panel = document.getElementById('quick-panel');
   const motivoSelect = document.getElementById('quick-panel-motivo');
@@ -188,9 +240,12 @@ function openQuickPanel() {
   document.getElementById('quick-panel-item').textContent =
     `${pendingItem.id} (${pendingAction === 'Entrada' ? 'Ingreso' : 'Venta'})`;
 
-  motivoSelect.innerHTML = pendingAction === 'Entrada'
-    ? '<option>Compra / Reposición</option><option>Devolución</option><option>Ajuste de inventario</option>'
-    : '<option>Venta</option><option>Ajuste de inventario</option>';
+  // Ingreso: el motivo sale del origen y su documento. Venta: motivo de siempre.
+  const esIngreso = pendingAction === 'Entrada';
+  document.getElementById('quick-panel-motivo-box').style.display = esIngreso ? 'none' : '';
+  motivoSelect.innerHTML = '<option>Venta</option><option>Ajuste de inventario</option>';
+  if (esIngreso) renderOrigenIngreso('qp-origen-box', 'qp');
+  else document.getElementById('qp-origen-box').innerHTML = '';
 
   panel.classList.add('show');
   document.getElementById('quick-panel-qty').focus();
@@ -207,7 +262,13 @@ function confirmMovimiento() {
   if (!pendingItem) return;
 
   const cantidad = parseInt(document.getElementById('quick-panel-qty').value, 10) || 0;
-  const motivo = document.getElementById('quick-panel-motivo').value;
+  if (cantidad <= 0) { alert('Escribe la cantidad.'); return; }
+  let motivo = document.getElementById('quick-panel-motivo').value;
+  if (pendingAction === 'Entrada') {
+    const origen = leerOrigenIngreso('qp');
+    if (origen.error) { alert(origen.error); return; }
+    motivo = origen.motivo;
+  }
   const confirmBtn = document.getElementById('quick-panel-confirm');
 
   confirmBtn.textContent = 'Guardando…';
@@ -267,6 +328,7 @@ function openLocationPanel() {
     }
   }
   toggleCamposAlmacen();
+  renderOrigenIngreso('loc-origen-box', 'loc');
 
   document.getElementById('location-panel').classList.add('show');
 }
@@ -318,6 +380,12 @@ function confirmLocation() {
   const confirmBtn = document.getElementById('location-panel-confirm');
 
   if (stockInicial <= 0 && !confirm('No pusiste cantidad. ¿Registrar la ubicación con 0 unidades?')) return;
+  let motivo = '';
+  if (stockInicial > 0) {
+    const origen = leerOrigenIngreso('loc');
+    if (origen.error) { alert(origen.error); return; }
+    motivo = origen.motivo + ' · en ' + (almacen === 'Palets en piso' ? codigoUbicacionPiso(referencia) : almacen);
+  }
   localStorage.setItem('ultimaUbicacion', JSON.stringify({ almacen, fila, modulo, lado, mueble, nivel, referencia }));
 
   confirmBtn.textContent = 'Guardando…';
@@ -331,6 +399,7 @@ function confirmLocation() {
       id_articulo: pendingItem.id,
       almacen, fila, modulo, lado, mueble, nivel, referencia,
       stock_inicial: stockInicial,
+      motivo,
       usuario: 'almacenero'
     })
   })

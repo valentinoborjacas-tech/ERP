@@ -91,12 +91,14 @@
             <label class="field-label">Cantidad</label>
             <input type="number" id="quick-panel-qty" class="input-classic" value="10" min="1" />
         </div>
-        <div style="width:200px;" class="quick-panel-field">
+        <div style="width:200px;" class="quick-panel-field" id="quick-panel-motivo-box">
             <label class="field-label">Motivo</label>
             <select class="input-classic" id="quick-panel-motivo"></select>
         </div>
         <button class="btn-classic btn-primary quick-panel-field" id="quick-panel-confirm">✓ Confirmar</button>
     </div>
+    <!-- Solo en ingresos: de dónde viene (guía, producción, devolución o ajuste) -->
+    <div id="qp-origen-box"></div>
 </div>
 
 <!-- Segundo panel integrado correctamente al mismo nivel -->
@@ -164,6 +166,7 @@
       <label class="field-label">Cantidad que ingresa</label>
       <input type="number" id="loc-stock-inicial" class="input-classic" value="0" min="0" />
     </div>
+    <div id="loc-origen-box" style="flex:1;"></div>
     <button class="btn-classic btn-primary quick-panel-field" id="location-panel-confirm">✔ Confirmar</button>
   </div>
 </div>

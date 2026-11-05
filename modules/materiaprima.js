@@ -18,10 +18,21 @@ window.initMateriaprimaModule = function () {
   _on('mp-imp-file', 'change', mpImpManejarArchivo);
   _on('mp-imp-confirmar', 'click', mpImpConfirmar);
   _on('mp-imp-plantilla', 'click', mpImpPlantilla);
+  _on('mp-imp-origen', 'change', () => {
+    const conGuia = document.getElementById('mp-imp-origen').value === 'Guía';
+    document.getElementById('mp-imp-guia-box').style.display = conGuia ? '' : 'none';
+    document.getElementById('mp-imp-motivo-box').style.display = conGuia ? 'none' : '';
+  });
   _on('mp-asig-zona-btn', 'click', mpAsignarZona);
   document.getElementById('mp-ingreso-close').addEventListener('click', () => {
-      document.getElementById('mp-zona-select').value = '';
-  document.getElementById('mp-ingreso-panel').classList.add('show');
+    document.getElementById('mp-zona-select').value = '';
+    document.getElementById('mp-ingreso-panel').classList.remove('show');
+  });
+  document.querySelectorAll('input[name="mp-origen"]').forEach((r) => r.addEventListener('change', actualizarOrigenIngreso));
+  document.getElementById('mp-guia').addEventListener('input', actualizarComparacionGuia);
+  document.getElementById('mp-peso-guia').addEventListener('input', actualizarComparacionGuia);
+  document.getElementById('mp-ingreso-panel').addEventListener('input', (e) => {
+    if (e.target.classList.contains('mp-peso-input')) actualizarComparacionGuia();
   });
   document.getElementById('mp-codigo').addEventListener('keyup', buscarMaterialPorCodigo);
   document.getElementById('mp-cantidad-bovinas').addEventListener('input', renderCamposPeso);
@@ -111,7 +122,7 @@ function abrirDetalleBovinas(idMaterial) {
 
   const tbodyIngresos = document.getElementById('mp-bovinas-tbody');
   const tbodyProduccion = document.getElementById('mp-bovinas-produccion-tbody');
-  tbodyIngresos.innerHTML = '<tr><td colspan="10">Cargando…</td></tr>';
+  tbodyIngresos.innerHTML = '<tr><td colspan="11">Cargando…</td></tr>';
   tbodyProduccion.innerHTML = '<tr><td colspan="5">Cargando…</td></tr>';
 
   fetch(`${API_URL}?action=bovinas&id_material=${encodeURIComponent(idMaterial)}&_=${Date.now()}`, { cache: 'no-store' })
@@ -137,6 +148,7 @@ function abrirDetalleBovinas(idMaterial) {
         <td data-label="ID Bovina">${b.idBovina}</td>
         <td data-label="Almacenero">${b.almacenero || ''}</td>
                 <td data-label="Proveedor">${b.proveedor}</td>
+        <td data-label="Guía / origen">${b.guia ? 'Guía ' + b.guia : b.origen === 'Ajuste de inventario' ? `<span class="badge badge-warn" title="${(b.observacion || '').replace(/"/g, '&quot;')}">Ajuste</span>` : '<span style="color:#888;">—</span>'}</td>
         <td data-label="Zona">${b.zona || '<span style="color:#c62828;">Sin zona</span>'}</td>
         <td data-label="Peso ingresado">${b.pesoInicial}</td>
         <td data-label="Peso actual">${b.pesoActual}</td>
@@ -144,7 +156,7 @@ function abrirDetalleBovinas(idMaterial) {
         <td data-label="Acciones">${editable ? `<button type="button" class="btn-classic mp-edit-btn" data-id="${b.idBovina}" data-peso="${b.pesoActual}">✏️ Editar peso</button> <button type="button" class="btn-classic mp-del-btn" data-id="${b.idBovina}" data-peso="${b.pesoActual}" style="color:#c62828;">🗑️ Eliminar</button>` : ''}</td>
       </tr>`;
     }).join('')
-  : '<tr><td colspan="10">Sin ingresos registrados.</td></tr>';
+  : '<tr><td colspan="11">Sin ingresos registrados.</td></tr>';
 
       const produccionesDelMaterial = prodLogData.filter((p) => p.idMaterial === idMaterial);
 
@@ -162,7 +174,51 @@ tbodyProduccion.innerHTML = produccionesDelMaterial.length
 }
 
 // ---------- Ingreso de bovinas ----------
+// Kilos ya registrados con cada guía en esta sesión: una guía puede traer varios materiales,
+// que se registran uno por uno; así la comparación con el total de la guía es por guía completa.
+const mpKgPorGuia = {};
+
+function origenIngreso() {
+  const r = document.querySelector('input[name="mp-origen"]:checked');
+  return r ? r.value : 'Guía';
+}
+
+function actualizarOrigenIngreso() {
+  const conGuia = origenIngreso() === 'Guía';
+  document.getElementById('mp-campos-guia').style.display = conGuia ? '' : 'none';
+  document.getElementById('mp-campos-ajuste').style.display = conGuia ? 'none' : '';
+  document.getElementById('mp-proveedor-obligatorio').style.display = conGuia ? '' : 'none';
+  actualizarComparacionGuia();
+}
+
+function pesosIngresados() {
+  return Array.from(document.querySelectorAll('.mp-peso-input')).map((inp) => Number(inp.value) || 0);
+}
+
+// "Guía: 1,100 kg · Pesado: 1,050 kg · Faltan 50 kg"
+function actualizarComparacionGuia() {
+  const caja = document.getElementById('mp-comparacion-guia');
+  const pesoGuia = Number(document.getElementById('mp-peso-guia').value) || 0;
+  if (origenIngreso() !== 'Guía' || pesoGuia <= 0) { caja.style.display = 'none'; return; }
+  const guia = document.getElementById('mp-guia').value.trim().toUpperCase();
+  const previo = mpKgPorGuia[guia] || 0;
+  const pesado = previo + pesosIngresados().reduce((s, p) => s + p, 0);
+  const dif = pesado - pesoGuia;
+  const fmt = (n) => n.toLocaleString('es-PE', { maximumFractionDigits: 1 });
+  const cuadra = Math.abs(dif) <= Math.max(0.5, pesoGuia * 0.005);
+  caja.className = 'md:col-span-2 mp-comp ' + (cuadra ? 'mp-comp-ok' : 'mp-comp-dif');
+  caja.innerHTML = `Guía: <b>${fmt(pesoGuia)} kg</b> · Pesado: <b>${fmt(pesado)} kg</b>` +
+    (previo ? ` (incluye ${fmt(previo)} kg ya registrados con esta guía)` : '') + ' · ' +
+    (cuadra ? '✔ Cuadra' : dif < 0 ? `<b>Faltan ${fmt(-dif)} kg</b>` : `<b>Sobran ${fmt(dif)} kg</b>`);
+  caja.style.display = '';
+}
+
 function abrirIngresoPanel() {
+  document.querySelector('input[name="mp-origen"][value="Guía"]').checked = true;
+  document.getElementById('mp-guia').value = '';
+  document.getElementById('mp-peso-guia').value = '';
+  document.getElementById('mp-motivo-ajuste').value = '';
+  actualizarOrigenIngreso();
   document.getElementById('mp-codigo').value = '';
   document.getElementById('mp-descripcion').value = '';
   document.getElementById('mp-codigo-resultados').innerHTML = '';
@@ -276,6 +332,26 @@ function confirmarIngresoBovinas() {
     const zona = document.getElementById('mp-zona-select').value;
   if (!zona) { alert('Selecciona la zona donde se guardan estas mangas.'); return; }
 
+  // Con guía: N.º de guía y proveedor obligatorios. Ajuste: motivo obligatorio.
+  const origen = origenIngreso();
+  const guia = document.getElementById('mp-guia').value.trim().toUpperCase();
+  let observacion = '';
+  if (origen === 'Guía') {
+    if (!guia) { alert('Escribe el N.º de guía del proveedor.'); return; }
+    if (!proveedor) { alert('Selecciona el proveedor de la guía.'); return; }
+    const pesoGuia = Number(document.getElementById('mp-peso-guia').value) || 0;
+    if (pesoGuia > 0) {
+      const pesado = (mpKgPorGuia[guia] || 0) + pesos.reduce((s, p) => s + p, 0);
+      const dif = pesado - pesoGuia;
+      if (Math.abs(dif) > Math.max(0.5, pesoGuia * 0.005)) {
+        observacion = `Guía ${pesoGuia} kg / pesado ${pesado.toFixed(1)} kg (${dif > 0 ? '+' : ''}${dif.toFixed(1)} kg)`;
+      }
+    }
+  } else {
+    observacion = document.getElementById('mp-motivo-ajuste').value.trim();
+    if (!observacion) { alert('Escribe el motivo del ajuste (dónde se encontró la manga).'); return; }
+  }
+
   const confirmBtn = document.getElementById('mp-ingreso-confirm');
   confirmBtn.textContent = 'Guardando…';
   confirmBtn.disabled = true;
@@ -285,7 +361,8 @@ function confirmarIngresoBovinas() {
     body: JSON.stringify({
       action: 'ingresar_bovinas',
             id_material: mpMaterialEncontrado.ID,
-      pesos, proveedor, almacenero, zona
+      pesos, proveedor, almacenero, zona,
+      origen, guia: origen === 'Guía' ? guia : '', observacion
     })
   })
     .then((r) => r.json())
@@ -298,10 +375,17 @@ function confirmarIngresoBovinas() {
 
         const ids = (resultado.bovinasCreadas || []).join(', ');
         const totalKg = pesos.reduce((s, p) => s + p, 0).toFixed(1);
-        mpToast(`✔ ${pesos.length} manga${pesos.length > 1 ? 's' : ''} registrada${pesos.length > 1 ? 's' : ''}<br><span style="font-size:15px;font-weight:normal;">${mpMaterialEncontrado.ID} · ${ids} · ${totalKg} kg</span>`);
+        if (origen === 'Guía') mpKgPorGuia[guia] = (mpKgPorGuia[guia] || 0) + pesos.reduce((s, p) => s + p, 0);
+        mpToast(`✔ ${pesos.length} manga${pesos.length > 1 ? 's' : ''} registrada${pesos.length > 1 ? 's' : ''}<br><span style="font-size:15px;font-weight:normal;">${mpMaterialEncontrado.ID} · ${ids} · ${totalKg} kg` +
+          `${origen === 'Guía' ? ' · Guía ' + guia : ' · Ajuste de inventario'}</span>`);
 
+        // La guía y su peso se mantienen: una guía puede traer varios materiales
         document.getElementById('mp-cantidad-bovinas').value = 1;
+        document.getElementById('mp-codigo').value = '';
+        document.getElementById('mp-descripcion').value = '';
+        mpMaterialEncontrado = null;
         renderCamposPeso();
+        actualizarComparacionGuia();
         fetchMpStock();
       } else {
         alert('Error: ' + resultado.error);
@@ -572,6 +656,11 @@ async function mpImpConfirmar() {
     if (!almacenero) { alert('Selecciona el almacenero.'); return; }
   const zonaImp = document.getElementById('mp-imp-zona').value;
   if (!zonaImp) { alert('Selecciona la zona.'); return; }
+  const origenImp = document.getElementById('mp-imp-origen').value;
+  const guiaImp = document.getElementById('mp-imp-guia').value.trim().toUpperCase();
+  const motivoImp = document.getElementById('mp-imp-motivo').value.trim();
+  if (origenImp === 'Guía' && (!guiaImp || !proveedor)) { alert('Para importar con guía, escribe el N.º de guía y elige el proveedor.'); return; }
+  if (origenImp !== 'Guía' && !motivoImp) { alert('Escribe el motivo del ajuste de inventario.'); return; }
 
   const validas = mpImpFilas.filter((f) => f.estado === 'ok');
   if (!validas.length) return;
@@ -587,7 +676,8 @@ async function mpImpConfirmar() {
     try {
       const r = await fetch(API_URL, {
         method: 'POST',
-             body: JSON.stringify({ action: 'ingresar_bovinas', id_material: idMat, pesos, proveedor, almacenero, zona: zonaImp })
+             body: JSON.stringify({ action: 'ingresar_bovinas', id_material: idMat, pesos, proveedor, almacenero, zona: zonaImp,
+               origen: origenImp, guia: origenImp === 'Guía' ? guiaImp : '', observacion: origenImp === 'Guía' ? '' : motivoImp })
       });
       const res = await r.json();
       if (res.ok) okCount += pesos.length; else errores.push(`${idMat}: ${res.error}`);
