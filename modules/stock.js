@@ -48,7 +48,7 @@ function fetchStock() {
     .then((r) => r.json())
     .then((data) => {
       if (data.error) throw new Error(data.error);
-      stockData = data;
+      stockData = data.map(normalizarMedidasItem);
       renderFiltered();
       setStatus('Listo');
     })
@@ -56,6 +56,21 @@ function fetchStock() {
       tbody.innerHTML = `<tr><td colspan="6">Error al cargar: ${err.message}. Revisa API_URL en assets/config.js.</td></tr>`;
       setStatus('Error al cargar stock');
     });
+}
+
+// Google Sheets (configuración en español) convierte medidas como "1.8" en la fecha 1 de agosto,
+// y llegan como "2026-08-01T05:00:00.000Z". Se recupera el número: día.mes → 1.8
+function normalizarMedida(valor) {
+  const s = String(valor == null ? '' : valor);
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) return valor;
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return valor;
+  return d.getDate() + '.' + (d.getMonth() + 1);
+}
+
+function normalizarMedidasItem(item) {
+  ['espesor', 'ancho', 'largo', 'litraje'].forEach((k) => { item[k] = normalizarMedida(item[k]); });
+  return item;
 }
 
 // ====== Filtrar y pintar la tabla ======
