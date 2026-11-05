@@ -371,13 +371,19 @@ function crearArticulo(data) {
   const values = artSheet.getDataRange().getValues();
   const headers = values[0];
 
-  const colId = headers.indexOf('ID');
-  const yaExiste = values.slice(1).some(function (row) { return row[colId] === data.ID; });
-  if (yaExiste) {
-    return { ok: false, error: 'Ya existe un artículo con el ID "' + data.ID + '"' };
-  }
+  data.ID = String(data.ID || '').trim();
   if (!data.ID) {
     return { ok: false, error: 'El ID es obligatorio' };
+  }
+  // En la hoja el ID suele ser número (1002) y desde la página llega como texto ("1002"):
+  // se comparan como texto, sin espacios y sin distinguir mayúsculas.
+  const colId = headers.indexOf('ID');
+  const idNuevo = data.ID.toUpperCase();
+  const yaExiste = values.slice(1).some(function (row) {
+    return String(row[colId]).trim().toUpperCase() === idNuevo;
+  });
+  if (yaExiste) {
+    return { ok: false, error: 'Ya existe un artículo con el ID "' + data.ID + '". Usa otro ID.' };
   }
 
   const nuevaFila = headers.map(function (h) { return data[h] !== undefined ? data[h] : ''; });

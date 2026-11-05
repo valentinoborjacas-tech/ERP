@@ -6,9 +6,12 @@ window.initArticulosModule = function () {
   document.getElementById('art-search-input').addEventListener('keyup', renderArticulosFiltered);
   document.getElementById('btn-nuevo-articulo').addEventListener('click', () => {
     llenarClientesArticulo();
+    document.getElementById('na-id').placeholder = `Siguiente libre: ${siguienteIdLibre()}`;
+    revisarIdNuevo();
     document.getElementById('new-article-panel').classList.add('show');
   });
   document.getElementById('na-cliente').addEventListener('change', elegirClienteNuevo);
+  document.getElementById('na-id').addEventListener('input', revisarIdNuevo);
   document.getElementById('new-article-close').addEventListener('click', () => {
     document.getElementById('new-article-panel').classList.remove('show');
   });
@@ -144,6 +147,30 @@ function elegirClienteNuevo(e) {
   llenarClientesArticulo(nombre);
 }
 
+// ¿Ya hay un artículo con este ID? (compara como texto: 1002 = "1002" = " 1002 ")
+function articuloConId(id) {
+  const buscado = String(id || '').trim().toUpperCase();
+  if (!buscado) return null;
+  return articulosData.find((a) => String(a.ID).trim().toUpperCase() === buscado) || null;
+}
+
+// Aviso en vivo mientras se escribe el ID
+function revisarIdNuevo() {
+  const input = document.getElementById('na-id');
+  const aviso = document.getElementById('na-id-aviso');
+  const enUso = articuloConId(input.value);
+  input.style.borderColor = enUso ? 'var(--danger)' : '';
+  aviso.innerHTML = enUso
+    ? `⚠ Este ID ya está en uso: <b>${String(enUso.DESCRIPCION || '').replace(/</g, '&lt;')}</b>. Usa otro.`
+    : '';
+  document.getElementById('new-article-confirm').disabled = !!enUso;
+}
+
+function siguienteIdLibre() {
+  const nums = articulosData.map((a) => Number(String(a.ID).trim())).filter((n) => Number.isInteger(n) && n > 0);
+  return nums.length ? Math.max(...nums) + 1 : 1;
+}
+
 function crearArticuloNuevo() {
   const nuevo = {
     ID: document.getElementById('na-id').value.trim(),
@@ -164,6 +191,12 @@ function crearArticuloNuevo() {
 
   if (!nuevo.ID || !nuevo.DESCRIPCION) {
     alert('El ID y la Descripción son obligatorios.');
+    return;
+  }
+  const enUso = articuloConId(nuevo.ID);
+  if (enUso) {
+    alert(`El ID "${nuevo.ID}" ya está en uso (${enUso.DESCRIPCION || 'otro artículo'}). Usa otro ID.`);
+    document.getElementById('na-id').focus();
     return;
   }
   if (!nuevo.EMPRESA || !nuevo.CLIENTE || nuevo.CLIENTE === CLIENTE_NUEVO) {

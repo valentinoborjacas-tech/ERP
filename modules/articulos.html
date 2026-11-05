@@ -18,7 +18,8 @@
     <span class="quick-panel-close" id="new-article-close">✕ Cerrar</span>
   </div>
   <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-    <div><label class="field-label">ID <span class="required-mark">*</span></label><input class="input-classic" id="na-id" /></div>
+    <div><label class="field-label">ID <span class="required-mark">*</span></label><input class="input-classic" id="na-id" autocomplete="off" />
+      <div id="na-id-aviso" class="field-help" style="color:var(--danger); margin:2px 0 0;"></div></div>
     <div class="md:col-span-2"><label class="field-label">Descripción <span class="required-mark">*</span></label><input class="input-classic" id="na-descripcion" /></div>
 
     <div><label class="field-label">Litraje</label><input class="input-classic" id="na-litraje" /></div>
