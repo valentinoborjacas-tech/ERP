@@ -45,8 +45,16 @@
       </select>
     </div>
 
-    <div><label class="field-label">Empresa</label><input class="input-classic" id="na-empresa" /></div>
-    <div><label class="field-label">Cliente</label><input class="input-classic" id="na-cliente" /></div>
+    <div><label class="field-label">Empresa <span class="required-mark">*</span></label>
+      <select class="input-classic" id="na-empresa">
+        <option value="">— Elegir —</option>
+        <option value="CASCONI">CASCONI</option>
+        <option value="VYS POLIBAGS">V&amp;S (VYS POLIBAGS)</option>
+      </select>
+    </div>
+    <div><label class="field-label">Cliente <span class="required-mark">*</span></label>
+      <select class="input-classic" id="na-cliente"><option value="">— Elegir —</option></select>
+    </div>
   </div>
   <div class="flex justify-end gap-2 mt-3">
     <button class="btn-classic btn-primary" id="new-article-confirm">✔ Guardar artículo</button>

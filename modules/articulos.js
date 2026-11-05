@@ -5,8 +5,10 @@ window.initArticulosModule = function () {
 
   document.getElementById('art-search-input').addEventListener('keyup', renderArticulosFiltered);
   document.getElementById('btn-nuevo-articulo').addEventListener('click', () => {
+    llenarClientesArticulo();
     document.getElementById('new-article-panel').classList.add('show');
   });
+  document.getElementById('na-cliente').addEventListener('change', elegirClienteNuevo);
   document.getElementById('new-article-close').addEventListener('click', () => {
     document.getElementById('new-article-panel').classList.remove('show');
   });
@@ -110,6 +112,38 @@ function abrirMovimientos(id) {
     });
 }
 
+// Lista de clientes = los que ya tienen artículos (sin repetidos ni espacios de más)
+const CLIENTE_NUEVO = '__nuevo__';
+let clientesExtra = [];
+
+function listaClientesArticulos() {
+  const set = new Set(clientesExtra);
+  articulosData.forEach((a) => {
+    const c = String(a.CLIENTE || '').trim().replace(/\s+/g, ' ').toUpperCase();
+    if (c) set.add(c);
+  });
+  return [...set].sort((a, b) => a.localeCompare(b, 'es'));
+}
+
+function llenarClientesArticulo(seleccionado) {
+  const sel = document.getElementById('na-cliente');
+  const actual = seleccionado !== undefined ? seleccionado : sel.value;
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  sel.innerHTML = '<option value="">— Elegir —</option>' +
+    listaClientesArticulos().map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('') +
+    `<option value="${CLIENTE_NUEVO}">➕ Cliente nuevo…</option>`;
+  sel.value = actual && actual !== CLIENTE_NUEVO ? actual : '';
+}
+
+function elegirClienteNuevo(e) {
+  if (e.target.value !== CLIENTE_NUEVO) return;
+  const nombre = (prompt('Nombre del cliente nuevo:') || '').trim().replace(/\s+/g, ' ').toUpperCase();
+  if (!nombre) { e.target.value = ''; return; }
+  const existente = listaClientesArticulos().find((c) => c === nombre);
+  if (!existente) clientesExtra.push(nombre);
+  llenarClientesArticulo(nombre);
+}
+
 function crearArticuloNuevo() {
   const nuevo = {
     ID: document.getElementById('na-id').value.trim(),
@@ -130,6 +164,10 @@ function crearArticuloNuevo() {
 
   if (!nuevo.ID || !nuevo.DESCRIPCION) {
     alert('El ID y la Descripción son obligatorios.');
+    return;
+  }
+  if (!nuevo.EMPRESA || !nuevo.CLIENTE || nuevo.CLIENTE === CLIENTE_NUEVO) {
+    alert('Elige la Empresa (CASCONI o V&S) y el Cliente.');
     return;
   }
 
