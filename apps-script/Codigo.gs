@@ -275,8 +275,9 @@ function getHojaIngresos() {
   let sh = ss.getSheetByName('INGRESOS');
   if (!sh) {
     sh = ss.insertSheet('INGRESOS');
-    sh.appendRow(['ID_INGRESO', 'FECHA_REGISTRO', 'FECHA_DOCUMENTO', 'ORIGEN', 'DOCUMENTO', 'PROVEEDOR', 'OBSERVACION', 'USUARIO', 'N_LINEAS', 'TOTAL_UNIDADES', 'DETALLE']);
+    sh.appendRow(['ID_INGRESO', 'FECHA_REGISTRO', 'FECHA_DOCUMENTO', 'ORIGEN', 'DOCUMENTO', 'PROVEEDOR', 'CLIENTE', 'OBSERVACION', 'USUARIO', 'N_LINEAS', 'TOTAL_UNIDADES', 'DETALLE']);
   }
+  asegurarColumna(sh, 'CLIENTE');
   return sh;
 }
 
@@ -294,7 +295,11 @@ function ingresoMercaderia(data) {
 
   // Validar todo antes de registrar nada
   const articulos = {};
-  sheetToObjects(getSheet(SHEET_ARTICULOS)).forEach(function (a) { articulos[String(a.ID)] = a.DESCRIPCION || ''; });
+  const clienteArticulo = {};
+  sheetToObjects(getSheet(SHEET_ARTICULOS)).forEach(function (a) {
+    articulos[String(a.ID)] = a.DESCRIPCION || '';
+    clienteArticulo[String(a.ID)] = String(a.CLIENTE || '').trim();
+  });
   const errores = [];
   lineas.forEach(function (l, i) {
     if (!articulos.hasOwnProperty(String(l.id_articulo))) errores.push('Línea ' + (i + 1) + ': el producto ' + l.id_articulo + ' no existe en el catálogo');
@@ -315,14 +320,20 @@ function ingresoMercaderia(data) {
         mueble: l.mueble, nivel: l.nivel, referencia: l.referencia,
         stock_inicial: Number(l.cantidad), motivo: motivo, usuario: data.usuario
       });
-      return { id: l.id_articulo, cantidad: Number(l.cantidad), ubicacion: r.id_ubicacion, disponible: r.disponible };
+      return { id: l.id_articulo, cliente: clienteArticulo[String(l.id_articulo)] || '', cantidad: Number(l.cantidad), ubicacion: r.id_ubicacion, disponible: r.disponible };
     });
     const total = resultados.reduce(function (s, r) { return s + r.cantidad; }, 0);
-    hoja.appendRow([
-      idIngreso, new Date(), data.fecha || '', origen, documento, proveedor, data.observacion || '', data.usuario || 'almacenero',
-      resultados.length, total,
-      resultados.map(function (r) { return r.id + ' x' + r.cantidad + ' @' + r.ubicacion; }).join('; ')
-    ]);
+    // Cliente del ingreso: el elegido en la pantalla, o los clientes de sus productos
+    const clientes = data.cliente ? [String(data.cliente).trim()]
+      : resultados.map(function (r) { return r.cliente; }).filter(function (c, i, a) { return c && a.indexOf(c) === i; });
+    const valores = {
+      ID_INGRESO: idIngreso, FECHA_REGISTRO: new Date(), FECHA_DOCUMENTO: data.fecha || '', ORIGEN: origen,
+      DOCUMENTO: documento, PROVEEDOR: proveedor, CLIENTE: clientes.join(', '), OBSERVACION: data.observacion || '',
+      USUARIO: data.usuario || 'almacenero', N_LINEAS: resultados.length, TOTAL_UNIDADES: total,
+      DETALLE: resultados.map(function (r) { return r.id + (r.cliente ? ' (' + r.cliente + ')' : '') + ' x' + r.cantidad + ' @' + r.ubicacion; }).join('; ')
+    };
+    const encabezados = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0].map(String);
+    hoja.appendRow(encabezados.map(function (h) { return valores.hasOwnProperty(h) ? valores[h] : ''; }));
     return { ok: true, idIngreso: idIngreso, total: total, lineas: resultados };
   } finally {
     lock.releaseLock();

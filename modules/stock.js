@@ -262,14 +262,31 @@ function productoDeTexto(texto) {
   return stockData.find((i) => String(i.id) === id) ? id : null;
 }
 
+// Cliente al que está amarrado un producto (columna CLIENTE del catálogo)
+function clienteDeProducto(id) {
+  const item = stockData.find((i) => String(i.id) === String(id));
+  return item && item.cliente ? String(item.cliente).trim() : '';
+}
+
+// Productos sugeridos: "ID — descripción · CLIENTE"; si se eligió un cliente, solo los suyos
+function llenarListaProductos() {
+  const cliente = document.getElementById('ing-cliente').value;
+  const vistos = {};
+  document.getElementById('ing-productos').innerHTML = stockData
+    .filter((i) => !vistos[i.id] && (vistos[i.id] = true))
+    .filter((i) => !cliente || String(i.cliente || '').trim() === cliente)
+    .map((i) => `<option value="${escAttr(i.id + ' — ' + i.descripcion + (i.cliente ? ' · ' + String(i.cliente).trim() : ''))}">`).join('');
+}
+
 function abrirIngresoMercaderia() {
   renderOrigenIngreso('ing-origen-box', 'ing');
   document.getElementById('ing-fecha').value = fechaHoyLocal();
   document.getElementById('ing-observacion').value = '';
-  const vistos = {};
-  document.getElementById('ing-productos').innerHTML = stockData
-    .filter((i) => !vistos[i.id] && (vistos[i.id] = true))
-    .map((i) => `<option value="${escAttr(i.id + ' — ' + i.descripcion)}">`).join('');
+  const clientes = [...new Set(stockData.map((i) => String(i.cliente || '').trim()).filter(Boolean))].sort();
+  const selCliente = document.getElementById('ing-cliente');
+  selCliente.innerHTML = '<option value="">Todos los clientes</option>' + clientes.map((c) => `<option value="${escAttr(c)}">${escAttr(c)}</option>`).join('');
+  selCliente.onchange = llenarListaProductos;
+  llenarListaProductos();
   document.getElementById('ing-lineas').innerHTML = '';
   agregarLineaIngreso();
   const panel = document.getElementById('ingreso-panel');
@@ -284,7 +301,8 @@ function agregarLineaIngreso(enfocar) {
   div.innerHTML = `
     <span class="ing-num"></span>
     <div class="ing-prod"><label class="field-label">Producto</label>
-      <input class="input-classic ing-producto" list="ing-productos" placeholder="Escribe el ID o la descripción" /></div>
+      <input class="input-classic ing-producto" list="ing-productos" placeholder="Escribe el ID, la descripción o el cliente" />
+      <div class="ing-cliente-info field-help" style="margin:2px 0 0;"></div></div>
     <div class="ing-cant"><label class="field-label">Cantidad</label>
       <input type="number" class="input-classic ing-cantidad" min="1" inputmode="numeric" /></div>
     <div class="ing-ubic"><label class="field-label">¿Dónde queda?</label>
@@ -312,6 +330,8 @@ function agregarLineaIngreso(enfocar) {
 // Ubicaciones posibles: las que ya tiene el producto, palets en piso u otro rack
 function actualizarUbicacionesLinea(div) {
   const id = productoDeTexto(div.querySelector('.ing-producto').value);
+  const cliente = id ? clienteDeProducto(id) : '';
+  div.querySelector('.ing-cliente-info').innerHTML = id ? `Cliente: <b>${escAttr(cliente || 'sin cliente asignado')}</b>` : '';
   const sel = div.querySelector('.ing-ubicacion');
   const existentes = id ? stockData.filter((i) => String(i.id) === id && i.ubicacion !== 'Sin ubicar') : [];
   sel.innerHTML = existentes.map((i) => `<option value="${escAttr(i.ubicacion)}">${escAttr(i.ubicacion)} (hay ${i.disponible})</option>`).join('') +
@@ -357,7 +377,8 @@ function datosLineaIngreso(div, n) {
     ubic = partesRack(v);
     if (!ubic) return { error: `Línea ${n}: no se reconoce la ubicación ${v}.` };
   }
-  return { linea: Object.assign({ id_articulo: id, cantidad }, ubic), texto: `${id} × ${cantidad} → ${v === '__rack__' ? extra.toUpperCase() : v === 'PISO' ? codigoUbicacionPiso(extra) : v}` };
+  const cliente = clienteDeProducto(id);
+  return { linea: Object.assign({ id_articulo: id, cantidad }, ubic), texto: `${id}${cliente ? ' (' + cliente + ')' : ''} × ${cantidad} → ${v === '__rack__' ? extra.toUpperCase() : v === 'PISO' ? codigoUbicacionPiso(extra) : v}` };
 }
 
 function confirmarIngresoMercaderia() {
@@ -389,6 +410,7 @@ function confirmarIngresoMercaderia() {
     method: 'POST',
     body: JSON.stringify({
       action: 'ingreso_mercaderia', origen, documento, proveedor, fecha,
+      cliente: document.getElementById('ing-cliente').value,
       observacion: document.getElementById('ing-observacion').value.trim(),
       lineas, usuario: 'almacenero'
     })
