@@ -25,6 +25,10 @@ window.initStockModule = function () {
   document.getElementById('stock-filter-almacen').addEventListener('change', renderFiltered);
   document.getElementById('loc-almacen').addEventListener('change', toggleCamposAlmacen);
   document.getElementById('loc-referencia').addEventListener('input', actualizarPreviewPiso);
+  document.getElementById('btn-ingreso-mercaderia').addEventListener('click', abrirIngresoMercaderia);
+  document.getElementById('ingreso-panel-close').addEventListener('click', () => document.getElementById('ingreso-panel').classList.remove('show'));
+  document.getElementById('ing-agregar-linea').addEventListener('click', () => agregarLineaIngreso(true));
+  document.getElementById('ing-confirmar').addEventListener('click', confirmarIngresoMercaderia);
     ['filter-cliente','filter-medida','filter-ubicacion','filter-color','filter-ancho','filter-largo','filter-espesor']
   .forEach((id) => document.getElementById(id).addEventListener('keyup', renderFiltered));
 
@@ -231,6 +235,179 @@ function leerOrigenIngreso(prefijo) {
   const partes = [origen, (origen === 'Guía de proveedor' ? 'Guía ' : '') + doc];
   if (o.proveedor) partes.push(prov.toUpperCase());
   return { motivo: partes.join(' · ') };
+}
+
+// ====== Ingreso de mercadería: un documento con varias líneas ======
+// El encabezado (origen, documento, proveedor, fecha) se llena una vez y abajo se agregan
+// todos los productos. Se registra todo junto con un número de ingreso (ING-0001).
+function escAttr(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+function fechaHoyLocal() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+// Código de rack → datos que pide el Apps Script. F1-M2-A-N1 = Almacén 2; R1-N2 = Almacén 1
+function partesRack(codigo) {
+  const c = String(codigo || '').trim().toUpperCase();
+  let m = c.match(/^(F\d+)-(M\d+)-([AB])-(N\d+)$/);
+  if (m) return { almacen: 'Almacén 2', fila: m[1], modulo: m[2], lado: m[3], nivel: m[4] };
+  m = c.match(/^([A-Z]\d+)-(N\d+)$/);
+  if (m) return { almacen: 'Almacén 1', mueble: m[1], nivel: m[2] };
+  return null;
+}
+
+function productoDeTexto(texto) {
+  const id = String(texto || '').split(' — ')[0].trim();
+  return stockData.find((i) => String(i.id) === id) ? id : null;
+}
+
+function abrirIngresoMercaderia() {
+  renderOrigenIngreso('ing-origen-box', 'ing');
+  document.getElementById('ing-fecha').value = fechaHoyLocal();
+  document.getElementById('ing-observacion').value = '';
+  const vistos = {};
+  document.getElementById('ing-productos').innerHTML = stockData
+    .filter((i) => !vistos[i.id] && (vistos[i.id] = true))
+    .map((i) => `<option value="${escAttr(i.id + ' — ' + i.descripcion)}">`).join('');
+  document.getElementById('ing-lineas').innerHTML = '';
+  agregarLineaIngreso();
+  const panel = document.getElementById('ingreso-panel');
+  panel.classList.add('show');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function agregarLineaIngreso(enfocar) {
+  const cont = document.getElementById('ing-lineas');
+  const div = document.createElement('div');
+  div.className = 'ing-linea';
+  div.innerHTML = `
+    <span class="ing-num"></span>
+    <div class="ing-prod"><label class="field-label">Producto</label>
+      <input class="input-classic ing-producto" list="ing-productos" placeholder="Escribe el ID o la descripción" /></div>
+    <div class="ing-cant"><label class="field-label">Cantidad</label>
+      <input type="number" class="input-classic ing-cantidad" min="1" inputmode="numeric" /></div>
+    <div class="ing-ubic"><label class="field-label">¿Dónde queda?</label>
+      <select class="input-classic ing-ubicacion"><option value="PISO">Palets en piso (sin rack)</option><option value="__rack__">Otro rack…</option></select></div>
+    <div class="ing-extra"><label class="field-label ing-extra-label">Referencia (opcional)</label>
+      <input class="input-classic ing-extra-input" placeholder="Ej. junto a rack F1" maxlength="30" /></div>
+    <button type="button" class="btn-classic ing-quitar" title="Quitar línea">✕</button>`;
+  cont.appendChild(div);
+
+  const prod = div.querySelector('.ing-producto');
+  prod.addEventListener('change', () => actualizarUbicacionesLinea(div));
+  prod.addEventListener('input', () => { if (productoDeTexto(prod.value)) actualizarUbicacionesLinea(div); });
+  div.querySelector('.ing-ubicacion').addEventListener('change', () => actualizarExtraLinea(div));
+  div.querySelector('.ing-cantidad').addEventListener('input', actualizarResumenIngreso);
+  div.querySelector('.ing-quitar').addEventListener('click', () => {
+    div.remove();
+    if (!document.querySelector('#ing-lineas .ing-linea')) agregarLineaIngreso();
+    actualizarResumenIngreso();
+  });
+  actualizarExtraLinea(div);
+  actualizarResumenIngreso();
+  if (enfocar) prod.focus();
+}
+
+// Ubicaciones posibles: las que ya tiene el producto, palets en piso u otro rack
+function actualizarUbicacionesLinea(div) {
+  const id = productoDeTexto(div.querySelector('.ing-producto').value);
+  const sel = div.querySelector('.ing-ubicacion');
+  const existentes = id ? stockData.filter((i) => String(i.id) === id && i.ubicacion !== 'Sin ubicar') : [];
+  sel.innerHTML = existentes.map((i) => `<option value="${escAttr(i.ubicacion)}">${escAttr(i.ubicacion)} (hay ${i.disponible})</option>`).join('') +
+    '<option value="PISO">Palets en piso (sin rack)</option><option value="__rack__">Otro rack…</option>';
+  sel.value = existentes.length === 1 ? existentes[0].ubicacion : 'PISO';
+  actualizarExtraLinea(div);
+}
+
+function actualizarExtraLinea(div) {
+  const v = div.querySelector('.ing-ubicacion').value;
+  const box = div.querySelector('.ing-extra');
+  const input = div.querySelector('.ing-extra-input');
+  box.style.display = v === 'PISO' || v === '__rack__' ? '' : 'none';
+  div.querySelector('.ing-extra-label').textContent = v === '__rack__' ? 'Código de rack *' : 'Referencia (opcional)';
+  input.placeholder = v === '__rack__' ? 'Ej. F1-M2-A-N1 o R1-N2' : 'Ej. junto a rack F1';
+}
+
+function actualizarResumenIngreso() {
+  const lineas = [...document.querySelectorAll('#ing-lineas .ing-linea')];
+  lineas.forEach((d, i) => { d.querySelector('.ing-num').textContent = (i + 1) + '.'; });
+  const total = lineas.reduce((s, d) => s + (parseInt(d.querySelector('.ing-cantidad').value, 10) || 0), 0);
+  const conCantidad = lineas.filter((d) => (parseInt(d.querySelector('.ing-cantidad').value, 10) || 0) > 0).length;
+  document.getElementById('ing-resumen').textContent = `${conCantidad} producto(s) · ${total.toLocaleString('es-PE')} unidades`;
+}
+
+// Arma una línea para el Apps Script, o devuelve { error }
+function datosLineaIngreso(div, n) {
+  const texto = div.querySelector('.ing-producto').value.trim();
+  const cantidad = parseInt(div.querySelector('.ing-cantidad').value, 10) || 0;
+  if (!texto && !cantidad) return null; // línea vacía: se ignora
+  const id = productoDeTexto(texto);
+  if (!id) return { error: `Línea ${n}: elige un producto de la lista.` };
+  if (cantidad <= 0) return { error: `Línea ${n}: escribe la cantidad.` };
+  const v = div.querySelector('.ing-ubicacion').value;
+  const extra = div.querySelector('.ing-extra-input').value.trim();
+  let ubic;
+  if (v === 'PISO') ubic = { almacen: 'Palets en piso', referencia: extra };
+  else if (v === '__rack__') {
+    ubic = partesRack(extra);
+    if (!ubic) return { error: `Línea ${n}: el código de rack debe ser como F1-M2-A-N1 o R1-N2.` };
+  } else if (/^PISO/.test(v)) ubic = { almacen: 'Palets en piso', referencia: v.replace(/^PISO-?/, '') };
+  else {
+    ubic = partesRack(v);
+    if (!ubic) return { error: `Línea ${n}: no se reconoce la ubicación ${v}.` };
+  }
+  return { linea: Object.assign({ id_articulo: id, cantidad }, ubic), texto: `${id} × ${cantidad} → ${v === '__rack__' ? extra.toUpperCase() : v === 'PISO' ? codigoUbicacionPiso(extra) : v}` };
+}
+
+function confirmarIngresoMercaderia() {
+  const origen = document.getElementById('ing-origen').value;
+  const o = ORIGENES_INGRESO[origen];
+  const documento = document.getElementById('ing-doc').value.trim();
+  const proveedor = document.getElementById('ing-prov').value.trim();
+  const fecha = document.getElementById('ing-fecha').value;
+  if (!documento) { alert('Completa: ' + o.campo); return; }
+  if (o.proveedor && !proveedor) { alert('Escribe el proveedor de la guía.'); return; }
+  if (!fecha) { alert('Indica la fecha del documento.'); return; }
+
+  const lineas = [], textos = [];
+  const divs = [...document.querySelectorAll('#ing-lineas .ing-linea')];
+  for (let i = 0; i < divs.length; i++) {
+    const r = datosLineaIngreso(divs[i], i + 1);
+    if (!r) continue;
+    if (r.error) { alert(r.error); return; }
+    lineas.push(r.linea); textos.push(r.texto);
+  }
+  if (!lineas.length) { alert('Agrega al menos un producto con su cantidad.'); return; }
+  if (!confirm(`¿Registrar este ingreso?\n\n${origen} · ${documento}${proveedor ? ' · ' + proveedor.toUpperCase() : ''}\n\n${textos.join('\n')}`)) return;
+
+  const btn = document.getElementById('ing-confirmar');
+  btn.textContent = 'Guardando…';
+  btn.disabled = true;
+  setStatus('Registrando ingreso…');
+  fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'ingreso_mercaderia', origen, documento, proveedor, fecha,
+      observacion: document.getElementById('ing-observacion').value.trim(),
+      lineas, usuario: 'almacenero'
+    })
+  })
+    .then((r) => r.json())
+    .then((res) => {
+      if (res.ok) {
+        localStorage.setItem('stock_ultimo_origen', origen);
+        alert(`✔ Ingreso ${res.idIngreso} registrado: ${res.lineas.length} producto(s), ${Number(res.total).toLocaleString('es-PE')} unidades.`);
+        document.getElementById('ingreso-panel').classList.remove('show');
+        setStatus('Ingreso ' + res.idIngreso + ' registrado');
+        fetchStock();
+      } else {
+        alert('Error: ' + (res.error || 'no se pudo registrar el ingreso'));
+        setStatus('Error al registrar el ingreso');
+      }
+    })
+    .catch((err) => { alert('Error de conexión: ' + err.message); setStatus('Error de conexión'); })
+    .finally(() => { btn.textContent = '✔ Registrar ingreso'; btn.disabled = false; });
 }
 
 function openQuickPanel() {

@@ -22,6 +22,44 @@
   <option value="Sin ubicar">Sin ubicar</option>
 </select>
   <button class="btn-classic btn-primary" id="btn-buscar-stock">Buscar</button>
+  <button class="btn-classic btn-ingreso" id="btn-ingreso-mercaderia">📦 Ingreso de mercadería</button>
+</div>
+
+<!-- Ingreso de mercadería: un documento (guía, parte de producción…) con varias líneas -->
+<div class="quick-panel" id="ingreso-panel">
+  <div class="quick-panel-header">
+    <span class="quick-panel-title">📦 Ingreso de mercadería</span>
+    <span class="quick-panel-close" id="ingreso-panel-close">✕ Cerrar</span>
+  </div>
+
+  <div class="groupbox" style="margin-bottom:12px;">
+    <span class="groupbox-label">Documento</span>
+    <div id="ing-origen-box"></div>
+    <div class="flex items-end gap-3 quick-panel-row" style="flex-wrap:wrap; margin-top:8px;">
+      <div class="quick-panel-field" style="width:170px;">
+        <label class="field-label">Fecha del documento <span class="required-mark">*</span></label>
+        <input type="date" class="input-classic" id="ing-fecha" />
+      </div>
+      <div class="quick-panel-field" style="flex:1; min-width:220px;">
+        <label class="field-label">Observación</label>
+        <input class="input-classic" id="ing-observacion" maxlength="120" placeholder="Opcional" />
+      </div>
+    </div>
+  </div>
+
+  <div class="groupbox">
+    <span class="groupbox-label">Productos que ingresan</span>
+    <datalist id="ing-productos"></datalist>
+    <div id="ing-lineas"></div>
+    <div class="flex items-center justify-between gap-2 mt-3" style="flex-wrap:wrap;">
+      <button class="btn-classic" id="ing-agregar-linea">+ Agregar producto</button>
+      <div id="ing-resumen" class="field-help" style="margin:0; font-size:13px;"></div>
+    </div>
+  </div>
+
+  <div class="flex justify-end gap-2 mt-3">
+    <button class="btn-classic btn-primary" id="ing-confirmar">✔ Registrar ingreso</button>
+  </div>
 </div>
 <div class="adv-filters">
   <div class="adv-filter-field">

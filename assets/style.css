@@ -543,6 +543,19 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   .quick-panel-close{ font-size:15px; padding:8px 10px; }
   .nav-item{ min-height:48px; }
 }
+/* Barras de búsqueda con varios botones: pasan a otra línea si no alcanza el ancho (tablet) */
+.search-bar{ flex-wrap:wrap; }
+.search-bar .search-input-wrap{ min-width:220px; }
+
+/* Ingreso de mercadería: cada línea es una fila que se acomoda en tablet */
+.ing-linea{ display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; padding:8px; border:1px solid var(--grid-line); border-radius:4px; margin-bottom:8px; background:#fff; }
+.ing-linea .ing-num{ font-weight:bold; color:#666; width:22px; align-self:center; }
+.ing-linea .ing-prod{ flex:3; min-width:240px; }
+.ing-linea .ing-cant{ width:110px; }
+.ing-linea .ing-ubic{ flex:2; min-width:190px; }
+.ing-linea .ing-extra{ flex:1; min-width:150px; }
+.ing-linea .ing-quitar{ color:var(--danger); }
+
 /* Despacho: botón "✓ Completo" y cantidad juntos */
 .disp-sale{ display:flex; gap:6px; align-items:center; }
 .disp-sale .disp-cantidad{ width:80px; }

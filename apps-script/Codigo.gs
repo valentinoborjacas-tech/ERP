@@ -64,6 +64,7 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     if (data.action === 'movimiento') return jsonResponse(registrarMovimiento(data));
     if (data.action === 'asignar_ubicacion') return jsonResponse(asignarUbicacion(data));
+    if (data.action === 'ingreso_mercaderia') return jsonResponse(ingresoMercaderia(data));
     if (data.action === 'crear_articulo') return jsonResponse(crearArticulo(data));
     if (data.action === 'nuevo_ticket') return jsonResponse(nuevoTicket(data));
     if (data.action === 'eliminar_ticket') return jsonResponse(eliminarTicket(data.numero));
@@ -263,6 +264,71 @@ function asignarUbicacion(data) {
 
   return { ok: true, id_ubicacion: idUbicacion, disponible: stockInicial };
 }
+// ====== INGRESO DE MERCADERÍA (un documento con varias líneas) ======
+// Un solo ingreso por guía / parte de producción: encabezado (origen, documento, proveedor, fecha)
+// y varias líneas (producto, cantidad, ubicación). Cada línea suma stock en su ubicación y queda
+// en MOVIMIENTOS con el número de ingreso; el encabezado queda en la hoja INGRESOS (se crea sola).
+const ORIGENES_MERCADERIA = ['Producción propia', 'Guía de proveedor', 'Devolución de cliente', 'Ajuste de inventario'];
+
+function getHojaIngresos() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let sh = ss.getSheetByName('INGRESOS');
+  if (!sh) {
+    sh = ss.insertSheet('INGRESOS');
+    sh.appendRow(['ID_INGRESO', 'FECHA_REGISTRO', 'FECHA_DOCUMENTO', 'ORIGEN', 'DOCUMENTO', 'PROVEEDOR', 'OBSERVACION', 'USUARIO', 'N_LINEAS', 'TOTAL_UNIDADES', 'DETALLE']);
+  }
+  return sh;
+}
+
+function ingresoMercaderia(data) {
+  // data: { origen, documento, proveedor, fecha, observacion, usuario,
+  //         lineas: [{ id_articulo, cantidad, almacen, fila, modulo, lado, mueble, nivel, referencia }] }
+  const origen = String(data.origen || '');
+  const documento = String(data.documento || '').trim();
+  const proveedor = String(data.proveedor || '').trim().toUpperCase();
+  const lineas = data.lineas || [];
+  if (ORIGENES_MERCADERIA.indexOf(origen) === -1) return { ok: false, error: 'Elige el origen del ingreso.' };
+  if (!documento) return { ok: false, error: 'Falta el documento (N.º de guía, ticket o motivo).' };
+  if (origen === 'Guía de proveedor' && !proveedor) return { ok: false, error: 'Falta el proveedor de la guía.' };
+  if (!lineas.length) return { ok: false, error: 'Agrega al menos un producto.' };
+
+  // Validar todo antes de registrar nada
+  const articulos = {};
+  sheetToObjects(getSheet(SHEET_ARTICULOS)).forEach(function (a) { articulos[String(a.ID)] = a.DESCRIPCION || ''; });
+  const errores = [];
+  lineas.forEach(function (l, i) {
+    if (!articulos.hasOwnProperty(String(l.id_articulo))) errores.push('Línea ' + (i + 1) + ': el producto ' + l.id_articulo + ' no existe en el catálogo');
+    if (!(Number(l.cantidad) > 0)) errores.push('Línea ' + (i + 1) + ': cantidad inválida');
+    if (!l.almacen) errores.push('Línea ' + (i + 1) + ': falta la ubicación');
+  });
+  if (errores.length) return { ok: false, error: errores.join('\n') };
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const hoja = getHojaIngresos();
+    const idIngreso = siguienteNumero(hoja, 'ID_INGRESO', 'ING-');
+    const motivo = [idIngreso, origen, (origen === 'Guía de proveedor' ? 'Guía ' : '') + documento].concat(proveedor ? [proveedor] : []).join(' · ');
+    const resultados = lineas.map(function (l) {
+      const r = asignarUbicacion({
+        id_articulo: l.id_articulo, almacen: l.almacen, fila: l.fila, modulo: l.modulo, lado: l.lado,
+        mueble: l.mueble, nivel: l.nivel, referencia: l.referencia,
+        stock_inicial: Number(l.cantidad), motivo: motivo, usuario: data.usuario
+      });
+      return { id: l.id_articulo, cantidad: Number(l.cantidad), ubicacion: r.id_ubicacion, disponible: r.disponible };
+    });
+    const total = resultados.reduce(function (s, r) { return s + r.cantidad; }, 0);
+    hoja.appendRow([
+      idIngreso, new Date(), data.fecha || '', origen, documento, proveedor, data.observacion || '', data.usuario || 'almacenero',
+      resultados.length, total,
+      resultados.map(function (r) { return r.id + ' x' + r.cantidad + ' @' + r.ubicacion; }).join('; ')
+    ]);
+    return { ok: true, idIngreso: idIngreso, total: total, lineas: resultados };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 // ====== LÓGICA: MOVIMIENTOS (historial, opcionalmente filtrado por producto) ======
 function getMovimientosData(id) {
   const movimientos = sheetToObjects(getSheet(SHEET_MOVIMIENTOS));
