@@ -199,14 +199,26 @@ function registrarMovimiento(data) {
   }
   return { ok: false, error: 'No se encontró ese producto en esa ubicación' };
 }
+// Producto en palets en el piso, sin rack (por falta de racks). Se guarda como una ubicación más:
+// "PISO" o "PISO-<referencia>" (ej. PISO-JUNTO-A-RACK-F1), así cuenta en el stock y se puede despachar.
+const ALMACEN_PISO = 'Palets en piso';
+
 function asignarUbicacion(data) {
-  // data esperado: { id_articulo, almacen, fila, modulo, lado, mueble, nivel, stock_inicial }
+  // data esperado: { id_articulo, almacen, fila, modulo, lado, mueble, nivel, referencia, stock_inicial, usuario }
   const ubicSheet = getSheet(SHEET_UBICACION);
-  const idUbicacion = data.almacen === 'Almacén 1'
-    ? data.mueble + '-' + data.nivel
-    : data.fila + '-' + data.modulo + '-' + data.lado + '-' + data.nivel;
+  const referencia = String(data.referencia || '').trim().toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const idUbicacion = data.almacen === ALMACEN_PISO
+    ? 'PISO' + (referencia ? '-' + referencia : '')
+    : data.almacen === 'Almacén 1'
+      ? data.mueble + '-' + data.nivel
+      : data.fila + '-' + data.modulo + '-' + data.lado + '-' + data.nivel;
   const stockInicial = Number(data.stock_inicial) || 0;
   const ahora = new Date();
+  const registrarIngreso = function (motivo) {
+    if (stockInicial <= 0) return;
+    getSheet(SHEET_MOVIMIENTOS).appendRow([ahora, data.id_articulo, idUbicacion, 'Entrada', stockInicial, motivo, data.usuario || 'almacenero']);
+  };
 
   const values  = ubicSheet.getDataRange().getValues();
   const headers = values[0];
@@ -221,12 +233,16 @@ function asignarUbicacion(data) {
   const colStock    = headers.indexOf('STOCK_DISPONIBLE');
   const colFecha    = headers.indexOf('ULTIMA_ACTUALIZACION');
 
+  // Si el producto ya está en esa ubicación, la cantidad se SUMA (es un ingreso más), no se reemplaza.
+  // Se compara como texto: el Sheet guarda IDs como número y la página los envía como texto.
   for (let i = 1; i < values.length; i++) {
-    if (values[i][colUbic] === idUbicacion && values[i][colArticulo] === data.id_articulo) {
-      ubicSheet.getRange(i + 1, colStock + 1).setValue(stockInicial);
+    if (String(values[i][colUbic]) === String(idUbicacion) && String(values[i][colArticulo]) === String(data.id_articulo)) {
+      const nuevo = (Number(values[i][colStock]) || 0) + stockInicial;
+      ubicSheet.getRange(i + 1, colStock + 1).setValue(nuevo);
       ubicSheet.getRange(i + 1, colFecha + 1).setValue(ahora);
-       invalidarCacheStock();
-      return { ok: true, id_ubicacion: idUbicacion, disponible: stockInicial };
+      registrarIngreso('Ingreso en ' + idUbicacion);
+      invalidarCacheStock();
+      return { ok: true, id_ubicacion: idUbicacion, disponible: nuevo, sumado: true };
     }
   }
 
@@ -237,11 +253,12 @@ function asignarUbicacion(data) {
   nuevaFila[colModulo] = data.modulo || '';
   nuevaFila[colLado] = data.lado || '';
   nuevaFila[colMueble] = data.mueble || '';
-  nuevaFila[colNivel] = data.nivel;
+  nuevaFila[colNivel] = data.almacen === ALMACEN_PISO ? '' : data.nivel;
   nuevaFila[colArticulo] = data.id_articulo;
   nuevaFila[colStock] = stockInicial;
   nuevaFila[colFecha] = ahora;
   ubicSheet.appendRow(nuevaFila);
+  registrarIngreso(data.almacen === ALMACEN_PISO ? 'Ingreso a palet en piso' : 'Ingreso con ubicación nueva');
   invalidarCacheStock();
 
   return { ok: true, id_ubicacion: idUbicacion, disponible: stockInicial };

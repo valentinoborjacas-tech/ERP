@@ -24,6 +24,7 @@ window.initStockModule = function () {
   document.getElementById('scanner-panel-close').addEventListener('click', closeScanner);
   document.getElementById('stock-filter-almacen').addEventListener('change', renderFiltered);
   document.getElementById('loc-almacen').addEventListener('change', toggleCamposAlmacen);
+  document.getElementById('loc-referencia').addEventListener('input', actualizarPreviewPiso);
     ['filter-cliente','filter-medida','filter-ubicacion','filter-color','filter-ancho','filter-largo','filter-espesor']
   .forEach((id) => document.getElementById(id).addEventListener('keyup', renderFiltered));
 
@@ -103,11 +104,14 @@ function rowHtml(item) {
     : item.estado === 'Bajo mínimo' ? 'badge-warn'
     : 'badge-danger';
 
+  // Sin ubicar: ingresar en rack o en palets en el piso. Con ubicación: ingreso/venta ahí,
+  // o "📍+" para registrar el producto en otra ubicación (por ejemplo, un palet extra en el piso).
   const accionesHtml = sinUbicar
-    ? `<button class="btn-classic btn-icon-sm" style="width:auto; padding:0 8px;" data-action="ubicar" title="Asignar ubicación">📍 Ubicar</button>`
+    ? `<button class="btn-classic btn-icon-sm" style="width:auto; padding:0 8px;" data-action="ubicar" title="Ingresar en rack o en palets en el piso">📍 Ingresar</button>`
     : `<div class="row-actions">
          <button class="btn-classic btn-icon-sm btn-ok" data-action="Entrada" title="Ingreso">↑</button>
          <button class="btn-classic btn-icon-sm btn-danger" data-action="Salida" title="Venta">↓</button>
+         <button class="btn-classic btn-icon-sm" style="width:auto; padding:0 6px;" data-action="ubicar" title="Ingresar en otra ubicación (otro rack o palet en piso)">📍+</button>
        </div>`;
 
   return `
@@ -235,7 +239,9 @@ function openLocationPanel() {
   const ultima = JSON.parse(localStorage.getItem('ultimaUbicacion') || 'null');
   if (ultima) {
     document.getElementById('loc-almacen').value = ultima.almacen || 'Almacén 2';
-    if (ultima.almacen === 'Almacén 1') {
+    if (ultima.almacen === 'Palets en piso') {
+      document.getElementById('loc-referencia').value = ultima.referencia || '';
+    } else if (ultima.almacen === 'Almacén 1') {
       document.getElementById('loc-mueble').value = ultima.mueble;
       document.getElementById('loc-nivel-a1').value = ultima.nivel;
     } else {
@@ -254,6 +260,20 @@ function toggleCamposAlmacen() {
   const almacen = document.getElementById('loc-almacen').value;
   document.getElementById('loc-fields-almacen1').style.display = almacen === 'Almacén 1' ? 'flex' : 'none';
   document.getElementById('loc-fields-almacen2').style.display = almacen === 'Almacén 2' ? 'flex' : 'none';
+  document.getElementById('loc-fields-piso').style.display = almacen === 'Palets en piso' ? 'flex' : 'none';
+  actualizarPreviewPiso();
+}
+
+// Muestra cómo quedará el código de la ubicación en piso (igual que lo arma el Apps Script)
+function codigoUbicacionPiso(referencia) {
+  const ref = String(referencia || '').trim().toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return 'PISO' + (ref ? '-' + ref : '');
+}
+
+function actualizarPreviewPiso() {
+  const preview = document.getElementById('loc-piso-preview');
+  if (preview) preview.textContent = codigoUbicacionPiso(document.getElementById('loc-referencia').value);
 }
 
 function closeLocationPanel() {
@@ -265,9 +285,11 @@ function confirmLocation() {
   if (!pendingItem) return;
 
   const almacen = document.getElementById('loc-almacen').value;
-  let fila = '', modulo = '', lado = '', mueble = '', nivel = '';
+  let fila = '', modulo = '', lado = '', mueble = '', nivel = '', referencia = '';
 
-  if (almacen === 'Almacén 1') {
+  if (almacen === 'Palets en piso') {
+    referencia = document.getElementById('loc-referencia').value.trim();
+  } else if (almacen === 'Almacén 1') {
     mueble = document.getElementById('loc-mueble').value;
     nivel = document.getElementById('loc-nivel-a1').value;
   } else {
@@ -280,7 +302,8 @@ function confirmLocation() {
   const stockInicial = parseInt(document.getElementById('loc-stock-inicial').value, 10) || 0;
   const confirmBtn = document.getElementById('location-panel-confirm');
 
-  localStorage.setItem('ultimaUbicacion', JSON.stringify({ almacen, fila, modulo, lado, mueble, nivel }));
+  if (stockInicial <= 0 && !confirm('No pusiste cantidad. ¿Registrar la ubicación con 0 unidades?')) return;
+  localStorage.setItem('ultimaUbicacion', JSON.stringify({ almacen, fila, modulo, lado, mueble, nivel, referencia }));
 
   confirmBtn.textContent = 'Guardando…';
   confirmBtn.disabled = true;
@@ -291,14 +314,15 @@ function confirmLocation() {
     body: JSON.stringify({
       action: 'asignar_ubicacion',
       id_articulo: pendingItem.id,
-      almacen, fila, modulo, lado, mueble, nivel,
-      stock_inicial: stockInicial
+      almacen, fila, modulo, lado, mueble, nivel, referencia,
+      stock_inicial: stockInicial,
+      usuario: 'almacenero'
     })
   })
     .then((r) => r.json())
     .then((resultado) => {
       if (resultado.ok) {
-        setStatus('Ubicación asignada: ' + resultado.id_ubicacion);
+        setStatus((resultado.sumado ? 'Ingreso sumado en ' : 'Ingresado en ') + resultado.id_ubicacion + ' · disponible: ' + resultado.disponible);
         fetchStock();
       } else {
         setStatus('Error: ' + (resultado.error || 'no se pudo asignar'));
