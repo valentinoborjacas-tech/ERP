@@ -323,9 +323,8 @@ function ingresoMercaderia(data) {
       return { id: l.id_articulo, cliente: clienteArticulo[String(l.id_articulo)] || '', cantidad: Number(l.cantidad), ubicacion: r.id_ubicacion, disponible: r.disponible };
     });
     const total = resultados.reduce(function (s, r) { return s + r.cantidad; }, 0);
-    // Cliente del ingreso: el elegido en la pantalla, o los clientes de sus productos
-    const clientes = data.cliente ? [String(data.cliente).trim()]
-      : resultados.map(function (r) { return r.cliente; }).filter(function (c, i, a) { return c && a.indexOf(c) === i; });
+    // Clientes del ingreso: los de sus productos (una guía puede traer productos de varios clientes)
+    const clientes = resultados.map(function (r) { return r.cliente; }).filter(function (c, i, a) { return c && a.indexOf(c) === i; });
     const valores = {
       ID_INGRESO: idIngreso, FECHA_REGISTRO: new Date(), FECHA_DOCUMENTO: data.fecha || '', ORIGEN: origen,
       DOCUMENTO: documento, PROVEEDOR: proveedor, CLIENTE: clientes.join(', '), OBSERVACION: data.observacion || '',

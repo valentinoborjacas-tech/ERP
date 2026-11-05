@@ -268,13 +268,12 @@ function clienteDeProducto(id) {
   return item && item.cliente ? String(item.cliente).trim() : '';
 }
 
-// Productos sugeridos: "ID — descripción · CLIENTE"; si se eligió un cliente, solo los suyos
+// Productos sugeridos: "ID — descripción · CLIENTE". Una misma guía puede traer productos
+// de varios clientes, así que se muestran todos; escribir el cliente también los encuentra.
 function llenarListaProductos() {
-  const cliente = document.getElementById('ing-cliente').value;
   const vistos = {};
   document.getElementById('ing-productos').innerHTML = stockData
     .filter((i) => !vistos[i.id] && (vistos[i.id] = true))
-    .filter((i) => !cliente || String(i.cliente || '').trim() === cliente)
     .map((i) => `<option value="${escAttr(i.id + ' — ' + i.descripcion + (i.cliente ? ' · ' + String(i.cliente).trim() : ''))}">`).join('');
 }
 
@@ -282,10 +281,6 @@ function abrirIngresoMercaderia() {
   renderOrigenIngreso('ing-origen-box', 'ing');
   document.getElementById('ing-fecha').value = fechaHoyLocal();
   document.getElementById('ing-observacion').value = '';
-  const clientes = [...new Set(stockData.map((i) => String(i.cliente || '').trim()).filter(Boolean))].sort();
-  const selCliente = document.getElementById('ing-cliente');
-  selCliente.innerHTML = '<option value="">Todos los clientes</option>' + clientes.map((c) => `<option value="${escAttr(c)}">${escAttr(c)}</option>`).join('');
-  selCliente.onchange = llenarListaProductos;
   llenarListaProductos();
   document.getElementById('ing-lineas').innerHTML = '';
   agregarLineaIngreso();
@@ -410,7 +405,6 @@ function confirmarIngresoMercaderia() {
     method: 'POST',
     body: JSON.stringify({
       action: 'ingreso_mercaderia', origen, documento, proveedor, fecha,
-      cliente: document.getElementById('ing-cliente').value,
       observacion: document.getElementById('ing-observacion').value.trim(),
       lineas, usuario: 'almacenero'
     })
