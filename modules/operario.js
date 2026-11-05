@@ -123,10 +123,15 @@ function cargarBovinasOp() {
     .then((r) => r.json())
     .then((data) => {
       const disp = data.filter((b) => Number(b.pesoActual) > 0 && b.estado !== 'En proceso');
+      // Las más antiguas primero, con sus días en almacén, para usarlas antes
+      const dias = (b) => (typeof diasDesdeIngreso === 'function' ? diasDesdeIngreso(b.fecha) : null);
+      disp.sort((a, b) => (dias(b) ?? -1) - (dias(a) ?? -1));
       select.innerHTML = disp.length
-        ? '<option value="">Selecciona una manga...</option>' + disp.map((b) =>
-            `<option value="${b.idBovina}" data-proveedor="${b.proveedor}">${b.idBovina} — ${Number(b.pesoActual).toFixed(1)} kg · ${b.zona || 'sin zona'} (${b.proveedor || 'sin proveedor'})</option>`
-          ).join('')
+        ? '<option value="">Selecciona una manga...</option>' + disp.map((b) => {
+            const d = dias(b);
+            const textoDias = d === null ? '' : ' · ' + (d === 0 ? 'ingresó hoy' : d === 1 ? '1 día' : d + ' días');
+            return `<option value="${b.idBovina}" data-proveedor="${b.proveedor}">${b.idBovina} — ${Number(b.pesoActual).toFixed(1)} kg · ${b.zona || 'sin zona'}${textoDias} (${b.proveedor || 'sin proveedor'})</option>`;
+          }).join('')
         : '<option value="">Sin mangas disponibles para este material</option>';
     })
     .catch(() => { select.innerHTML = '<option value="">Error al buscar mangas</option>'; });

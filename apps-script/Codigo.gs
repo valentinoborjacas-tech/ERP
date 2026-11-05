@@ -615,6 +615,7 @@ function ingresarBovinas(data) {
   try {
     const bovSheet = getSheet(SHEET_BOVINAS);
     asegurarColumna(bovSheet, 'ZONA');
+    const colFecha = columnaFechaBovinas(bovSheet);
     const nCols = bovSheet.getLastColumn();
     const headers = bovSheet.getRange(1, 1, 1, nCols).getValues()[0].map(String);
     const lastRow = bovSheet.getLastRow();
@@ -629,7 +630,8 @@ function ingresarBovinas(data) {
       put('ID_BOVINA', id); put('ID_MATERIAL', data.id_material);
       put('PESO_INICIAL', peso); put('PESO_ACTUAL', peso);
       put('PROVEEDOR', data.proveedor || ''); put('ALMACENERO', data.almacenero || '');
-      put('FECHA Y HORA', ahora); put('ESTADO', 'Disponible'); put('ZONA', zona);
+      put('ESTADO', 'Disponible'); put('ZONA', zona);
+      fila[colFecha - 1] = ahora; // fecha de ingreso, para contar los días en almacén
       return fila;
     });
     bovSheet.getRange(lastRow + 1, 1, filas.length, nCols).setValues(filas);
@@ -639,6 +641,25 @@ function ingresarBovinas(data) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// La columna de fecha de ingreso de BOVINAS puede llamarse "FECHA Y HORA", "FECHA", "FECHA/HORA"…
+// Se acepta cualquier encabezado que empiece por "FECHA" (sin importar mayúsculas ni espacios).
+function esEncabezadoFecha(h) {
+  return String(h || '').trim().toUpperCase().indexOf('FECHA') === 0;
+}
+
+// Número de columna (1-based) de la fecha de ingreso; si no existe ninguna, crea "FECHA Y HORA"
+function columnaFechaBovinas(sheet) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const i = headers.findIndex(esEncabezadoFecha);
+  return i !== -1 ? i + 1 : asegurarColumna(sheet, 'FECHA Y HORA');
+}
+
+function fechaIngresoBovina(b) {
+  const clave = Object.keys(b).find(esEncabezadoFecha);
+  const v = clave ? b[clave] : '';
+  return v instanceof Date ? v.toISOString() : (v || '');
 }
 
 function getBovinas(idMaterial) {
@@ -658,7 +679,7 @@ function getBovinas(idMaterial) {
       return {
         idBovina: b.ID_BOVINA, proveedor: b.PROVEEDOR || '', almacenero: b.ALMACENERO || '',
         zona: b.ZONA || '',
-        fecha: b['FECHA Y HORA'] || '', pesoInicial: Number(b.PESO_INICIAL) || 0,
+        fecha: fechaIngresoBovina(b), pesoInicial: Number(b.PESO_INICIAL) || 0,
         pesoActual: Number(b.PESO_ACTUAL) || 0, nCorridas: corridas[b.ID_BOVINA] || 0, estado: estado
       };
     });

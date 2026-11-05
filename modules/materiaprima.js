@@ -111,7 +111,7 @@ function abrirDetalleBovinas(idMaterial) {
 
   const tbodyIngresos = document.getElementById('mp-bovinas-tbody');
   const tbodyProduccion = document.getElementById('mp-bovinas-produccion-tbody');
-  tbodyIngresos.innerHTML = '<tr><td colspan="9">Cargando…</td></tr>';
+  tbodyIngresos.innerHTML = '<tr><td colspan="10">Cargando…</td></tr>';
   tbodyProduccion.innerHTML = '<tr><td colspan="5">Cargando…</td></tr>';
 
   fetch(`${API_URL}?action=bovinas&id_material=${encodeURIComponent(idMaterial)}&_=${Date.now()}`, { cache: 'no-store' })
@@ -133,6 +133,7 @@ function abrirDetalleBovinas(idMaterial) {
       return `
       <tr>
         <td data-label="Fecha">${formatFecha(b.fecha)}</td>
+        <td data-label="Días en almacén">${diasCeldaHtml(b, !producida && b.pesoActual > 0)}</td>
         <td data-label="ID Bovina">${b.idBovina}</td>
         <td data-label="Almacenero">${b.almacenero || ''}</td>
                 <td data-label="Proveedor">${b.proveedor}</td>
@@ -143,7 +144,7 @@ function abrirDetalleBovinas(idMaterial) {
         <td data-label="Acciones">${editable ? `<button type="button" class="btn-classic mp-edit-btn" data-id="${b.idBovina}" data-peso="${b.pesoActual}">✏️ Editar peso</button> <button type="button" class="btn-classic mp-del-btn" data-id="${b.idBovina}" data-peso="${b.pesoActual}" style="color:#c62828;">🗑️ Eliminar</button>` : ''}</td>
       </tr>`;
     }).join('')
-  : '<tr><td colspan="8">Sin ingresos registrados.</td></tr>';
+  : '<tr><td colspan="10">Sin ingresos registrados.</td></tr>';
 
       const produccionesDelMaterial = prodLogData.filter((p) => p.idMaterial === idMaterial);
 
@@ -456,6 +457,31 @@ function formatFecha(iso) {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+// Días calendario desde el ingreso de una manga hasta hoy (trazabilidad). null si no hay fecha válida.
+// También lo usa operario.js al listar las mangas para elegir.
+function diasDesdeIngreso(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const hoy = new Date();
+  const inicio = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const fin = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+  return Math.max(Math.round((fin - inicio) / 86400000), 0);
+}
+
+function diasTexto(dias) {
+  if (dias === null) return '—';
+  return dias === 0 ? 'Hoy' : dias === 1 ? '1 día' : dias + ' días';
+}
+
+// Mangas disponibles: naranja desde 30 días y rojo desde 60, para usar primero las más antiguas
+function diasCeldaHtml(b, disponible) {
+  const dias = diasDesdeIngreso(b.fecha);
+  if (dias === null || !disponible) return `<span style="color:#888;">${diasTexto(dias)}</span>`;
+  const color = dias >= 60 ? 'var(--danger)' : dias >= 30 ? 'var(--warn)' : 'inherit';
+  return `<strong style="color:${color};">${diasTexto(dias)}</strong>`;
 }
 // ===== Importar mangas desde Excel =====
 let mpImpFilas = [];
