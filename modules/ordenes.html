@@ -16,7 +16,7 @@
 <div class="quick-panel" id="dispatch-panel">
   <div class="quick-panel-header">
     <span class="quick-panel-title">Preparar despacho — <span id="dispatch-panel-numero">—</span></span>
-    <span class="quick-panel-close" id="dispatch-panel-close">✕ Cerrar</span>
+    <button type="button" class="quick-panel-close" id="dispatch-panel-close" aria-label="Cerrar">✕</button>
   </div>
   <div class="help-banner">
     <span>💡</span>
@@ -31,7 +31,7 @@
       <tbody id="dispatch-tbody"></tbody>
     </table>
   </div>
-  <div class="flex justify-end gap-2 mt-3" style="flex-wrap:wrap;">
+  <div class="flex justify-end gap-2 mt-3 modal-pie" style="flex-wrap:wrap;">
     <button class="btn-classic" id="dispatch-avance">💾 Guardar avance (todavía no sale)</button>
     <button class="btn-classic btn-primary" id="dispatch-confirm">🚚 Confirmar despacho</button>
   </div>
@@ -41,9 +41,9 @@
 <div class="quick-panel" id="order-view-panel">
   <div class="quick-panel-header">
     <span class="quick-panel-title">Orden <span id="order-view-numero">—</span></span>
-    <span class="quick-panel-close" id="order-view-close">✕ Cerrar</span>
+    <button type="button" class="quick-panel-close" id="order-view-close" aria-label="Cerrar">✕</button>
   </div>
-  <div class="field-help" id="order-view-info" style="margin-bottom:8px;"></div>
+  <div class="modal-resumen" id="order-view-info"></div>
   <div class="table-scroll">
     <table class="data-grid orden-items">
       <thead><tr><th>ID</th><th>Descripción</th><th>Solicitado</th><th>Listo (sin despachar)</th><th>Despachado</th><th>Falta</th><th>Ubicación</th><th>Estado</th></tr></thead>
@@ -60,11 +60,11 @@
 <div class="quick-panel" id="guia-panel">
   <div class="quick-panel-header">
     <span class="quick-panel-title">Guía de salida generada</span>
-    <span class="quick-panel-close" id="guia-panel-close">✕ Cerrar</span>
+    <button type="button" class="quick-panel-close" id="guia-panel-close" aria-label="Cerrar">✕</button>
   </div>
   <!-- Se llena con mostrarGuia() en el mismo formato con cuadrícula de la hoja de la orden -->
   <div id="guia-print" class="hoja-preview"></div>
-  <div class="flex justify-end gap-2 mt-3">
+  <div class="flex justify-end gap-2 mt-3 modal-pie">
     <button class="btn-classic btn-primary" id="guia-imprimir">🖨️ Imprimir guía</button>
   </div>
 </div>

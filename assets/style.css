@@ -750,11 +750,89 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   table.dispatch-items tr.dsp-hecho td.dsp-num,
   table.dispatch-items tr.dsp-hecho td.dsp-ubic{ display:none; }
 
-  /* Botones de abajo: grandes, a todo el ancho y siempre a la vista al final de la pantalla */
-  #dispatch-panel > .flex.justify-end.mt-3{
-    position:sticky; bottom:0; z-index:5; background:var(--panel-bg, #fff);
-    padding:8px 0; margin-top:4px; box-shadow:0 -4px 8px rgba(0,0,0,.08);
-  }
-  #dispatch-panel > .flex.justify-end.mt-3 .btn-classic,
+  /* Botones de abajo: grandes y a todo el ancho */
+  #dispatch-panel .modal-pie .btn-classic,
   #dispatch-todo{ flex:1 1 100%; width:100%; min-height:48px; font-size:15px; }
+}
+
+/* ===== Ventanas flotantes de Órdenes (ver orden, preparar/despachar, guía) =====
+   Se abren encima de la lista; solo se desplaza lo de adentro. En celular ocupan toda la pantalla. */
+#ord-backdrop{
+  position:fixed; inset:0; background:rgba(15,23,42,.55); z-index:1000;
+  opacity:0; pointer-events:none; transition:opacity .2s;
+}
+#ord-backdrop.show{ opacity:1; pointer-events:auto; }
+html.modal-abierto, body.modal-abierto{ overflow:hidden; }
+
+.quick-panel.ord-modal.show{
+  position:fixed; z-index:1001; margin:0;
+  top:50%; left:50%; transform:translate(-50%, -50%);
+  width:min(920px, 94vw); max-height:88vh; overflow-y:auto; overscroll-behavior:contain;
+  background:#f6f8fb; border:none; border-radius:16px; padding:0 20px 20px;
+  box-shadow:0 20px 50px rgba(0,0,0,.3);
+  animation:modalEntra .18s ease-out;
+}
+#guia-panel.ord-modal.show{ z-index:1002; }
+@keyframes modalEntra{ from{ opacity:0; transform:translate(-50%, -48%) scale(.98); } to{ opacity:1; transform:translate(-50%, -50%); } }
+
+/* Encabezado fijo arriba dentro de la ventana */
+.ord-modal .quick-panel-header{
+  position:sticky; top:0; z-index:6; background:#f6f8fb;
+  margin:0 -20px 12px; padding:16px 20px 12px; border-bottom:1px solid #e1e5ea;
+}
+.ord-modal .quick-panel-header{ flex-wrap:nowrap !important; gap:10px; }
+.ord-modal .quick-panel-title{ font-size:18px; font-weight:700; color:#1d2733; min-width:0; line-height:1.25; }
+.ord-modal .quick-panel-close{ flex-shrink:0; }
+@media (max-width: 767px){ .ord-modal .quick-panel-title{ font-size:16px; } }
+.ord-modal .quick-panel-close{
+  width:40px; height:40px; border-radius:50%; border:none; background:#e6eaf0; color:#333;
+  font-size:18px; line-height:1; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0;
+}
+.ord-modal .quick-panel-close:hover{ background:#d7dde5; }
+
+/* Resumen de la orden (mismo estilo que la tarjeta) */
+.modal-resumen{
+  background:#fff; border:1px solid #e1e5ea; border-radius:12px; padding:14px 16px; margin-bottom:12px;
+  display:flex; flex-direction:column; gap:6px;
+}
+.modal-resumen:empty{ display:none; }
+.modal-seccion{ font-size:13px; font-weight:700; color:#4a5563; text-transform:uppercase; letter-spacing:.4px; margin:16px 2px 8px; }
+
+/* Productos dentro de la ventana: tarjetas blancas redondeadas como las de la lista */
+.ord-modal table.data-grid{ background:transparent; }
+.ord-modal .table-scroll{ border:none; }
+.ord-modal .help-banner{ border-radius:10px; }
+
+/* Despachos realizados */
+.desp-item{
+  display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+  background:#fff; border:1px solid #e1e5ea; border-radius:12px; padding:12px 14px; margin-bottom:8px;
+}
+.desp-txt{ font-size:14px; color:#1d2733; flex:1 1 220px; }
+.desp-res{ font-size:13px; color:#6b7480; margin-top:2px; }
+.desp-item .ord-btn{ flex:0 0 auto; }
+
+/* Botones de abajo: siempre a la vista al final de la ventana */
+.ord-modal .modal-pie{
+  position:sticky; bottom:-20px; z-index:6; background:#f6f8fb;
+  margin:12px -20px -20px; padding:12px 20px 16px; border-top:1px solid #e1e5ea;
+}
+
+@media (max-width: 767px){
+  .quick-panel.ord-modal.show{
+    top:0; left:0; transform:none; width:100%; max-width:100%; height:100%; max-height:100%;
+    border-radius:0; padding:0 14px 16px; animation:modalSube .22s ease-out;
+  }
+  @keyframes modalSube{ from{ transform:translateY(24px); opacity:0; } to{ transform:none; opacity:1; } }
+  .ord-modal .quick-panel-header{ margin:0 -14px 10px; padding:12px 14px 10px; }
+  .ord-modal .modal-pie{ margin:10px -14px -16px; padding:10px 14px calc(12px + env(safe-area-inset-bottom)); bottom:-16px; }
+  /* Las tarjetas de productos en blanco sobre el fondo gris claro */
+  .ord-modal table.data-grid tbody tr,
+  .ord-modal table.data-grid tbody tr:nth-child(even),
+  .ord-modal table.data-grid tbody tr:nth-child(odd){ background:#fff !important; border-color:#e1e5ea; border-radius:12px; }
+}
+
+@media print{
+  html.modal-abierto, body.modal-abierto{ overflow:visible; }
+  #ord-backdrop{ display:none !important; }
 }

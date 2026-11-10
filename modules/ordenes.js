@@ -35,6 +35,7 @@ window.initOrdenesModule = function () {
   document.getElementById('guia-panel').classList.remove('show');
   });
   document.getElementById('guia-imprimir').addEventListener('click', () => imprimirDocumento(document.getElementById('guia-print').innerHTML));
+  prepararModalesOrdenes();
 };
 
 let vistaOrdenes = 'activas';
@@ -144,8 +145,50 @@ function handleOrdenesClick(e) {
   if (btn.dataset.action === 'preparar') abrirDespacho(numero);
   else if (btn.dataset.action === 'ver') abrirVerOrden(numero);
   else if (btn.dataset.action === 'hoja') { imprimirHojaOrden(numero); return; }
-  // El panel se abre arriba de la lista: se lleva la pantalla hasta él
-  if (panel) document.getElementById(panel).scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Se abre como ventana flotante: siempre empieza arriba
+  if (panel) document.getElementById(panel).scrollTop = 0;
+}
+
+// ---------- Ventanas flotantes (ver orden, preparar/despachar, guía) ----------
+// Mientras una está abierta, la lista de atrás no se mueve; se cierra con ✕, tocando fuera o con Esc.
+const MODALES_ORDENES = ['order-view-panel', 'dispatch-panel', 'guia-panel'];
+
+function modalesAbiertos() {
+  return MODALES_ORDENES.map((id) => document.getElementById(id)).filter((p) => p && p.classList.contains('show'));
+}
+
+function sincronizarModales() {
+  const abiertos = modalesAbiertos();
+  document.body.classList.toggle('modal-abierto', abiertos.length > 0);
+  document.documentElement.classList.toggle('modal-abierto', abiertos.length > 0);
+  const fondo = document.getElementById('ord-backdrop');
+  if (fondo) fondo.classList.toggle('show', abiertos.length > 0);
+}
+
+function cerrarModalSuperior() {
+  // La guía va encima de las demás; si no, la última de la lista que esté abierta
+  const abiertos = modalesAbiertos();
+  const arriba = abiertos.find((p) => p.id === 'guia-panel') || abiertos[abiertos.length - 1];
+  if (arriba) arriba.classList.remove('show');
+}
+
+function prepararModalesOrdenes() {
+  if (!document.getElementById('ord-backdrop')) {
+    const fondo = document.createElement('div');
+    fondo.id = 'ord-backdrop';
+    fondo.addEventListener('click', cerrarModalSuperior);
+    document.body.appendChild(fondo);
+  }
+  const obs = new MutationObserver(sincronizarModales);
+  MODALES_ORDENES.forEach((id) => {
+    const p = document.getElementById(id);
+    if (p) { p.classList.add('ord-modal'); obs.observe(p, { attributes: true, attributeFilter: ['class'] }); }
+  });
+  if (!window.__ordEscListo) {
+    window.__ordEscListo = true;
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modalesAbiertos().length) cerrarModalSuperior(); });
+  }
+  sincronizarModales();
 }
 
 // ---------- Ver una orden ya despachada (solo consulta) ----------
@@ -155,13 +198,21 @@ function abrirVerOrden(numero) {
   const orden = ordenesData.find((o) => o.numero === numero);
   const panel = document.getElementById('order-view-panel');
   document.getElementById('order-view-numero').textContent = numero;
-  document.getElementById('order-view-info').textContent =
-    (orden ? orden.solicitante + ' · ' + orden.estado : '') + (orden && orden.observaciones ? ' · ' + orden.observaciones : '');
-  document.getElementById('order-view-tbody').innerHTML = `<tr><td colspan="7">Cargando…</td></tr>`;
+  // Encabezado igual que la tarjeta: cliente, estado y datos de la orden
+  const d = orden ? datosHojaOrden(orden) : { cliente: '', notas: [] };
+  const cls = { 'Pendiente': 'pendiente', 'En preparación': 'preparacion', 'Despachada parcial': 'parcial', 'Despachada': 'despachada' }[orden && orden.estado] || 'pendiente';
+  const datos = [d.sede && `Sede ${d.sede}`, d.oc && `OC ${d.oc.replace(/^[a-z]\s+/i, '')}`, d.entrega && `Entrega ${d.entrega}`, ...(d.notas || [])].filter(Boolean);
+  document.getElementById('order-view-info').innerHTML = orden ? `
+    <div class="ord-card-top">
+      <div class="ord-cliente">${escHtml(d.cliente || orden.solicitante)}</div>
+      <span class="ord-estado ${cls}">${escHtml(orden.estado)}</span>
+    </div>
+    ${datos.length ? `<div class="ord-detalle">${datos.map(escHtml).join(' · ')}</div>` : ''}` : '';
+  document.getElementById('order-view-tbody').innerHTML = `<tr><td colspan="8">Cargando productos…</td></tr>`;
   document.getElementById('order-view-despachos').innerHTML = '';
   panel.classList.add('show');
   panel.dataset.numero = numero;
-  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  panel.scrollTop = 0;
 
   fetch(`${API_URL}?action=orden_detalle&numero=${encodeURIComponent(numero)}&_=${Date.now()}`, { cache: 'no-store' })
     .then((r) => r.json())
@@ -209,14 +260,14 @@ function renderVerOrdenDespachos(lineas) {
   const ids = [...new Set(lineas.map((l) => l.idDespacho))];
   const cont = document.getElementById('order-view-despachos');
   cont.innerHTML = ids.length
-    ? `<div class="field-label" style="margin:12px 0 6px;">Despachos realizados</div>` +
+    ? `<div class="modal-seccion">Despachos realizados</div>` +
       ids.map((id) => {
         const delDespacho = lineas.filter((l) => l.idDespacho === id);
         const resumen = delDespacho.map((l) => `${l.descripcion} (${l.cantidad})`).join(', ');
         return `
-          <div class="flex items-center justify-between gap-2 mb-2" style="flex-wrap:wrap;">
-            <span><strong>${id}</strong> · ${new Date(delDespacho[0].fecha).toLocaleString()} · ${resumen}</span>
-            <button class="btn-classic" data-reimprimir="${id}">🖨️ Ver guía</button>
+          <div class="desp-item">
+            <div class="desp-txt"><strong>${escHtml(id)}</strong> · ${new Date(delDespacho[0].fecha).toLocaleDateString('es-PE')}<div class="desp-res">${escHtml(resumen)}</div></div>
+            <button class="ord-btn" data-reimprimir="${escHtml(id)}">🖨 Ver guía</button>
           </div>`;
       }).join('')
     : '';
@@ -226,7 +277,7 @@ function renderVerOrdenDespachos(lineas) {
       const delDespacho = despachosVista.filter((l) => l.idDespacho === btn.dataset.reimprimir);
       const guia = delDespacho.map((l) => ({ id: l.idArticulo, descripcion: l.descripcion, cantidad: l.cantidad, ubicacion: l.idUbicacion }));
       mostrarGuia(delDespacho[0].numero, guia, btn.dataset.reimprimir, null, delDespacho[0].fecha);
-      document.getElementById('guia-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById('guia-panel').scrollTop = 0;
     });
   });
 }
