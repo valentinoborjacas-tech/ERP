@@ -413,6 +413,46 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   }
   table.data-grid td[data-label="ID"]::before{ display:none; }
   table.data-grid td[data-label="Acciones"]{ justify-content:flex-end; }
+
+  /* Productos de una orden: tarjeta compacta (producto + estado, 4 cifras en una fila, ubicación) */
+  table.orden-items tr{
+    display:grid;
+    grid-template-columns:repeat(8, 1fr);
+    grid-template-areas:
+      "id desc desc desc desc desc est est"
+      "n1 n1 n2 n2 n3 n3 n4 n4"
+      "ub ub ub ub ub ub ub ub";
+    gap:4px 6px;
+    padding:8px;
+    margin-bottom:8px;
+  }
+  table.orden-items td{ padding:0; width:auto; min-width:0; }
+  table.orden-items td[data-label="ID"]{
+    grid-area:id; border:none; margin:0; padding:0; font-size:13px; align-self:center;
+  }
+  table.orden-items td[data-label="Descripción"]{
+    grid-area:desc; font-weight:bold; font-size:13px; justify-content:flex-start; align-self:center;
+    display:block; line-height:1.25; overflow-wrap:anywhere;
+  }
+  table.orden-items td[data-label="Descripción"]::before{ display:none; }
+  table.orden-items td[data-label="Estado"]{ grid-area:est; justify-content:flex-end; }
+  table.orden-items td[data-label="Estado"]::before{ display:none; }
+  table.orden-items td[data-label="Estado"] .badge{ font-size:11px; padding:2px 6px; white-space:nowrap; }
+  table.orden-items td.oi-num{
+    flex-direction:column; justify-content:center; align-items:center; gap:0;
+    background:#f3f5f8; border-radius:4px; padding:4px 2px; font-size:14px;
+  }
+  table.orden-items td.oi-num::before{ font-size:10px; font-weight:normal; letter-spacing:.3px; }
+  table.orden-items td[data-label="Pedido"]{ grid-area:n1; }
+  table.orden-items td[data-label="Listo"]{ grid-area:n2; }
+  table.orden-items td[data-label="Salió"]{ grid-area:n3; }
+  table.orden-items td[data-label="Falta"]{ grid-area:n4; background:#fff4e0; }
+  table.orden-items td.oi-falta.oi-cero{ background:#e8f5e9; }
+  table.orden-items td[data-label="Ubicación"]{
+    grid-area:ub; justify-content:flex-start; font-size:12px; color:#555;
+  }
+  table.orden-items td[data-label="Ubicación"]::before{ content:"📍"; font-size:12px; }
+  table.orden-items td.oi-sin-ubic{ display:none; }
 }
 .adv-filters{
   display:grid;

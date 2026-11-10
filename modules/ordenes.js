@@ -152,11 +152,11 @@ function renderVerOrdenDetalle(detalle) {
           <tr>
             <td data-label="ID">${l.idArticulo}</td>
             <td data-label="Descripción">${l.descripcion}</td>
-            <td data-label="Solicitado">${solicitado}</td>
-            <td data-label="Listo (sin despachar)">${listo || '—'}</td>
-            <td data-label="Despachado">${despachado || '—'}</td>
-            <td data-label="Falta"><strong>${Math.max(solicitado - despachado - listo, 0)}</strong></td>
-            <td data-label="Ubicación">${l.idUbicacion || '—'}</td>
+            <td data-label="Pedido" class="oi-num">${solicitado}</td>
+            <td data-label="Listo" class="oi-num">${listo || '—'}</td>
+            <td data-label="Salió" class="oi-num">${despachado || '—'}</td>
+            <td data-label="Falta" class="oi-num oi-falta${Math.max(solicitado - despachado - listo, 0) ? '' : ' oi-cero'}"><strong>${Math.max(solicitado - despachado - listo, 0)}</strong></td>
+            <td data-label="Ubicación"${l.idUbicacion ? '' : ' class="oi-sin-ubic"'}>${l.idUbicacion || '—'}</td>
             <td data-label="Estado">${(() => {
               // Producto separado pero aún sin despachar
               let est = l.estadoLinea || 'Pendiente';
