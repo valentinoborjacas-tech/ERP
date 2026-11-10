@@ -16,6 +16,9 @@ window.initOrdenesModule = function () {
   }));
 
   document.getElementById('ordenes-lista').addEventListener('click', handleOrdenesClick);
+  document.getElementById('ordenes-lista').addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('ord-info')) { e.preventDefault(); handleOrdenesClick(e); }
+  });
 
   document.getElementById('dispatch-panel-close').addEventListener('click', () => {
   document.getElementById('dispatch-panel').classList.remove('show');
@@ -111,22 +114,25 @@ function ordenCardHtml({ o, d, entrega }, hoy) {
   const principal = activa
     ? `<button class="ord-btn primario" data-action="preparar" data-numero="${escHtml(o.numero)}">📦 ${{ 'Pendiente': 'Preparar', 'En preparación': 'Continuar preparando' }[o.estado] || 'Despachar lo que falta'}</button>`
     : '';
-  const ver = o.estado === 'Pendiente' ? '' : `<button class="ord-btn" data-action="ver" data-numero="${escHtml(o.numero)}">👁 Ver detalle</button>`;
   const hoja = `<button class="ord-btn" data-action="hoja" data-numero="${escHtml(o.numero)}">🖨 Hoja</button>`;
 
+  // Toda la parte de arriba de la tarjeta es tocable: abre los productos de la orden
   return `
     <article class="ord-card ${cls}">
-      <div class="ord-card-top">
-        <div class="ord-cliente">${escHtml(d.cliente || 'Sin cliente')}</div>
-        <span class="ord-estado ${cls}">${escHtml(o.estado)}</span>
+      <div class="ord-info" data-action="ver" data-numero="${escHtml(o.numero)}" role="button" tabindex="0" title="Ver los productos de la orden">
+        <div class="ord-card-top">
+          <div class="ord-cliente">${escHtml(d.cliente || 'Sin cliente')}</div>
+          <span class="ord-estado ${cls}">${escHtml(o.estado)}</span>
+        </div>
+        ${detalle ? `<div class="ord-detalle">${detalle}</div>` : ''}
+        <div class="ord-meta">
+          <span class="ord-num">${escHtml(o.numero)}</span>
+          <span>Pedido ${fechaCorta(new Date(o.fecha))}</span>
+          ${chipEntrega}
+        </div>
+        <div class="ord-ver">Ver productos <span aria-hidden="true">›</span></div>
       </div>
-      ${detalle ? `<div class="ord-detalle">${detalle}</div>` : ''}
-      <div class="ord-meta">
-        <span class="ord-num">${escHtml(o.numero)}</span>
-        <span>Pedido ${fechaCorta(new Date(o.fecha))}</span>
-        ${chipEntrega}
-      </div>
-      <div class="ord-acciones">${principal}<div class="ord-sec">${ver}${hoja}</div></div>
+      <div class="ord-acciones">${principal}<div class="ord-sec">${hoja}</div></div>
     </article>`;
 }
 

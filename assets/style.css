@@ -675,6 +675,15 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
 .ord-chip.ambar{ background:#fff3d6; color:#9a6b00; }
 .ord-chip.rojo{ background:#fde4e1; color:#b42318; }
 
+.ord-info{
+  display:flex; flex-direction:column; gap:8px; cursor:pointer; border-radius:8px;
+  margin:-6px -6px 0; padding:6px; -webkit-tap-highlight-color:transparent; transition:background .12s;
+}
+.ord-info:hover{ background:#f5f7fa; }
+.ord-info:active{ background:#eceff3; }
+.ord-info:focus-visible{ outline:2px solid #0a3d7a; outline-offset:2px; }
+.ord-ver{ font-size:13px; font-weight:600; color:#0a3d7a; }
+.ord-ver span{ font-size:16px; }
 .ord-acciones{ display:flex; flex-direction:column; gap:8px; margin-top:6px; }
 .ord-sec{ display:flex; gap:8px; }
 .ord-btn{
