@@ -18,22 +18,19 @@
     <span class="quick-panel-title">Preparar despacho — <span id="dispatch-panel-numero">—</span></span>
     <button type="button" class="quick-panel-close" id="dispatch-panel-close" aria-label="Cerrar">✕</button>
   </div>
-  <div class="help-banner">
-    <span>💡</span>
-    <span>Por cada producto toca <b>✓ Completo</b> o escribe cuánto hay listo. Si el pedido sale otro día, toca <b>💾 Guardar avance</b> (no descuenta stock). Cuando sube al camión, toca <b>🚚 Confirmar despacho</b>.</span>
+  <div class="modal-resumen" id="dispatch-info"></div>
+  <div class="dsp-ayuda">Escribe cuánto está listo de cada producto (o toca <b>✓ Todo</b>). <b>Guardar avance</b> lo deja anotado sin despachar; <b>Despachar</b> genera la guía.</div>
+  <div class="dsp-barra">
+    <span class="modal-seccion" style="margin:0;">Productos</span>
+    <button type="button" class="ord-btn dsp-marcar-todo" id="dispatch-todo">✓ Marcar todo completo</button>
   </div>
-  <div class="flex justify-end gap-2 mb-2">
-    <button class="btn-classic" id="dispatch-todo">✓ Llenar todo con lo que hay en stock</button>
-  </div>
-  <div class="table-scroll">
-    <table class="data-grid dispatch-items" id="dispatch-table">
-      <thead><tr><th>ID</th><th>Descripción</th><th>Pedido</th><th>Ya salió</th><th class="col-disponible">Disponible</th><th>Ubicación</th><th>Listo / sale</th><th>Falta</th></tr></thead>
-      <tbody id="dispatch-tbody"></tbody>
-    </table>
-  </div>
-  <div class="flex justify-end gap-2 mt-3 modal-pie" style="flex-wrap:wrap;">
-    <button class="btn-classic" id="dispatch-avance">💾 Guardar avance (todavía no sale)</button>
-    <button class="btn-classic btn-primary" id="dispatch-confirm">🚚 Confirmar despacho</button>
+  <div class="dsp-lista" id="dispatch-tbody"></div>
+  <div class="modal-pie dsp-pie">
+    <div class="dsp-total" id="dispatch-total"></div>
+    <div class="dsp-pie-btns">
+      <button type="button" class="ord-btn" id="dispatch-avance">💾 Guardar avance</button>
+      <button type="button" class="ord-btn primario" id="dispatch-confirm">🚚 Despachar</button>
+    </div>
   </div>
 </div>
 

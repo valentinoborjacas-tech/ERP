@@ -387,107 +387,125 @@ function crearOrdenNueva() {
 }
 
 // ---------- Preparar y despachar ----------
-function abrirDespacho(numero) {
-  document.getElementById('dispatch-panel-numero').textContent = numero;
-  document.getElementById('dispatch-panel').classList.add('show');
-  document.getElementById('dispatch-panel').dataset.numero = numero;
-  document.getElementById('dispatch-tbody').innerHTML = `<tr><td colspan="8">Cargando…</td></tr>`;
+// Mientras el stock de bolsas se sigue cargando, el despacho NO se amarra al stock:
+// no pide ubicación, no valida existencias y no descuenta. Cuando el stock esté listo, cambiar a true.
+const DESCONTAR_STOCK_EN_DESPACHO = false;
 
-  Promise.all([
-    fetch(`${API_URL}?action=orden_detalle&numero=${encodeURIComponent(numero)}&_=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json()),
-    fetch(`${API_URL}?action=stock&_=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json())
-  ]).then(([detalle, stock]) => renderDespachoTabla(detalle, stock));
+function abrirDespacho(numero) {
+  const panel = document.getElementById('dispatch-panel');
+  document.getElementById('dispatch-panel-numero').textContent = numero;
+  panel.classList.add('show');
+  panel.dataset.numero = numero;
+  panel.scrollTop = 0;
+
+  // Mismo resumen que la tarjeta de la orden
+  const orden = ordenesData.find((o) => o.numero === numero);
+  const d = orden ? datosHojaOrden(orden) : { cliente: '' };
+  const cls = { 'Pendiente': 'pendiente', 'En preparación': 'preparacion', 'Despachada parcial': 'parcial', 'Despachada': 'despachada' }[orden && orden.estado] || 'pendiente';
+  const datos = [d.sede && `Sede ${d.sede}`, d.oc && `OC ${d.oc.replace(/^[a-z]\s+/i, '')}`, d.entrega && `Entrega ${d.entrega}`].filter(Boolean);
+  document.getElementById('dispatch-info').innerHTML = orden ? `
+    <div class="ord-card-top">
+      <div class="ord-cliente">${escHtml(d.cliente || orden.solicitante)}</div>
+      <span class="ord-estado ${cls}">${escHtml(orden.estado)}</span>
+    </div>
+    ${datos.length ? `<div class="ord-detalle">${datos.map(escHtml).join(' · ')}</div>` : ''}` : '';
+
+  document.getElementById('dispatch-tbody').innerHTML = `<div class="ord-vacio">Cargando productos…</div>`;
+  document.getElementById('dispatch-total').textContent = '';
+
+  fetch(`${API_URL}?action=orden_detalle&numero=${encodeURIComponent(numero)}&_=${Date.now()}`, { cache: 'no-store' })
+    .then((r) => r.json())
+    .then(renderDespachoTabla)
+    .catch((err) => { document.getElementById('dispatch-tbody').innerHTML = `<div class="ord-vacio">Error: ${escHtml(err.message)}</div>`; });
 }
 
-// Igual que en la hoja de papel: por cada producto, "✓ Completo" o la cantidad que sale.
-// La columna "Falta" se calcula sola mientras se escribe.
-function renderDespachoTabla(detalle, stock) {
-  const tbody = document.getElementById('dispatch-tbody');
-  tbody.innerHTML = detalle.map((linea) => {
-    const despachado = Number(linea.cantidadDespachada) || 0;
-    const pendiente = Math.max((Number(linea.cantidadSolicitada) || 0) - despachado, 0);
+const fmtCant = (n) => (Number(n) || 0).toLocaleString('es-PE');
 
-    // Producto ya completo: se muestra, pero no se puede volver a despachar
+// Una tarjeta por producto: cuánto se pidió, cuánto salió ya, y una casilla grande para "listo / sale".
+// "Falta" se recalcula mientras se escribe.
+function renderDespachoTabla(detalle) {
+  const cont = document.getElementById('dispatch-tbody');
+  if (!detalle.length) { cont.innerHTML = `<div class="ord-vacio">Esta orden no tiene productos.</div>`; return; }
+
+  cont.innerHTML = detalle.map((linea) => {
+    const pedido = Number(linea.cantidadSolicitada) || 0;
+    const despachado = Number(linea.cantidadDespachada) || 0;
+    const pendiente = Math.max(pedido - despachado, 0);
+    const titulo = `<div class="dsp-head"><span class="dsp-id">${escHtml(linea.idArticulo)}</span><span class="dsp-desc">${escHtml(linea.descripcion)}</span></div>`;
+
+    // Producto que ya salió completo: una línea, sin casilla
     if (pendiente <= 0) {
-      return `
-      <tr class="dsp-hecho" style="color:#888;">
-        <td data-label="ID">${linea.idArticulo}</td>
-        <td data-label="Descripción">${linea.descripcion}</td>
-        <td data-label="Pedido" class="dsp-num">${linea.cantidadSolicitada}</td>
-        <td data-label="Salió" class="dsp-num">${despachado}</td>
-        <td class="col-disponible dsp-num" data-label="Hay">—</td>
-        <td data-label="Ubicación" class="dsp-ubic">—</td>
-        <td data-label="Sale" class="dsp-sale"><span class="badge badge-ok">Ya salió todo</span></td>
-        <td data-label="Falta" class="dsp-num disp-falta">0</td>
-      </tr>`;
+      return `<div class="dsp-card hecho">${titulo}<span class="ord-estado despachada">✓ Salió todo · ${fmtCant(pedido)}</span></div>`;
     }
 
-    // IDs como texto: el stock puede venir como número (22) y el detalle como texto ("22")
-    const ubicacionesDisponibles = stock.filter((s) => String(s.id) === String(linea.idArticulo) && s.ubicacion !== 'Sin ubicar' && s.disponible > 0);
-    const totalDisponible = ubicacionesDisponibles.reduce((sum, u) => sum + u.disponible, 0);
-
-    const opcionesUbicacion = ubicacionesDisponibles.length
-      ? ubicacionesDisponibles.map((u) => `<option value="${u.ubicacion}" data-disp="${u.disponible}">${u.ubicacion} (${u.disponible} disp.)</option>`).join('')
-      : `<option value="" data-disp="0">Sin stock ubicado</option>`;
-
-    // Lo que se guardó como avance (listo, aún sin despachar) aparece ya cargado
+    // Lo guardado como avance (listo, aún sin despachar) aparece ya cargado
     const preparada = Math.min(Number(linea.cantidadPreparada) || 0, pendiente);
-
     return `
-      <tr data-id="${linea.idArticulo}" data-descripcion="${linea.descripcion}" data-pendiente="${pendiente}" data-preparada="${preparada}">
-        <td data-label="ID">${linea.idArticulo}</td>
-        <td data-label="Descripción">${linea.descripcion}</td>
-        <td data-label="Pedido" class="dsp-num">${linea.cantidadSolicitada}</td>
-        <td data-label="Salió" class="dsp-num">${despachado || '—'}</td>
-        <td class="col-disponible dsp-num${totalDisponible < pendiente ? ' dsp-poco' : ''}" data-label="Hay">${totalDisponible}${totalDisponible < pendiente ? ' ⚠️' : ''}</td>
-        <td data-label="Sale de" class="dsp-ubic"><select class="input-classic disp-ubicacion"${ubicacionesDisponibles.length ? '' : ' disabled'}>${opcionesUbicacion}</select></td>
-        <td data-label="Listo / sale" class="dsp-sale">
-          <div class="disp-sale">
-            <button type="button" class="btn-classic disp-completo"${ubicacionesDisponibles.length ? '' : ' disabled'}>✓ Completo</button>
-            <input type="number" class="input-classic disp-cantidad" value="${preparada || ''}" placeholder="0" min="0" max="${pendiente}" inputmode="numeric"${ubicacionesDisponibles.length ? '' : ' disabled'} />
+      <div class="dsp-card" data-id="${escHtml(linea.idArticulo)}" data-descripcion="${escHtml(linea.descripcion)}" data-pendiente="${pendiente}" data-preparada="${preparada}">
+        ${titulo}
+        <div class="dsp-nums">
+          <div><span>Pedido</span><b>${fmtCant(pedido)}</b></div>
+          <div><span>Ya salió</span><b>${despachado ? fmtCant(despachado) : '—'}</b></div>
+          <div class="dsp-falta"><span>Falta</span><b class="disp-falta">${fmtCant(pendiente)}</b></div>
+        </div>
+        <div class="dsp-entrada">
+          <label class="dsp-label">Listo / sale ahora</label>
+          <div class="dsp-entrada-fila">
+            <input type="number" class="disp-cantidad" value="${preparada || ''}" placeholder="0" min="0" max="${pendiente}" inputmode="numeric" />
+            <button type="button" class="ord-btn disp-completo">✓ Todo (${fmtCant(pendiente)})</button>
           </div>
-          ${preparada ? `<div class="field-help" style="margin-top:2px;">Avance guardado: ${preparada}</div>` : ''}
-        </td>
-        <td data-label="Falta" class="dsp-num disp-falta"><strong>${pendiente}</strong></td>
-      </tr>`;
+          ${preparada ? `<div class="dsp-nota">Avance guardado: ${fmtCant(preparada)}</div>` : ''}
+        </div>
+      </div>`;
   }).join('');
 
-  tbody.querySelectorAll('tr[data-id]').forEach((fila) => {
-    if (Number(fila.dataset.preparada) > 0) actualizarFaltaFila(fila);
+  cont.querySelectorAll('.dsp-card[data-id]').forEach((fila) => {
+    actualizarFaltaFila(fila);
     fila.querySelector('.disp-cantidad').addEventListener('input', () => actualizarFaltaFila(fila));
-    fila.querySelector('.disp-ubicacion').addEventListener('change', () => actualizarFaltaFila(fila));
     fila.querySelector('.disp-completo').addEventListener('click', () => {
-      fila.querySelector('.disp-cantidad').value = fila.dataset.pendiente;
+      const input = fila.querySelector('.disp-cantidad');
+      // Segundo toque en "Todo" lo deja en cero (por si se tocó sin querer)
+      input.value = (parseInt(input.value, 10) || 0) === Number(fila.dataset.pendiente) ? '' : fila.dataset.pendiente;
       actualizarFaltaFila(fila);
     });
   });
+  actualizarTotalDespacho();
 }
 
-function stockUbicacionFila(fila) {
-  const sel = fila.querySelector('.disp-ubicacion');
-  const opt = sel.options[sel.selectedIndex];
-  return opt ? Number(opt.dataset.disp) || 0 : 0;
+function filasDespacho() {
+  return [...document.querySelectorAll('#dispatch-tbody .dsp-card[data-id]')];
 }
 
 function actualizarFaltaFila(fila) {
   const pendiente = Number(fila.dataset.pendiente) || 0;
   const input = fila.querySelector('.disp-cantidad');
   let sale = parseInt(input.value, 10) || 0;
+  if (sale < 0) { sale = 0; input.value = ''; }
   if (sale > pendiente) { sale = pendiente; input.value = pendiente; }
   const falta = Math.max(pendiente - sale, 0);
   const celda = fila.querySelector('.disp-falta');
-  celda.innerHTML = `<strong style="color:${falta > 0 ? 'var(--danger)' : 'var(--ok)'};">${falta}</strong>`;
-  const sinStock = sale > stockUbicacionFila(fila);
-  input.style.borderColor = sinStock ? 'var(--danger)' : '';
-  input.title = sinStock ? 'En esa ubicación no hay suficiente stock' : '';
-  fila.querySelector('.disp-completo').classList.toggle('btn-primary', sale > 0 && sale === pendiente);
+  celda.textContent = fmtCant(falta);
+  fila.querySelector('.dsp-falta').classList.toggle('cero', falta === 0);
+  fila.classList.toggle('completo', sale > 0 && falta === 0);
+  fila.classList.toggle('con-cantidad', sale > 0);
+  fila.querySelector('.disp-completo').classList.toggle('activo', sale > 0 && sale === pendiente);
+  actualizarTotalDespacho();
 }
 
-// Llena cada producto con lo que hay: todo lo pedido si alcanza el stock, o lo disponible en su ubicación
+function actualizarTotalDespacho() {
+  const filas = filasDespacho();
+  const conCantidad = filas.filter((f) => (parseInt(f.querySelector('.disp-cantidad').value, 10) || 0) > 0);
+  const unidades = conCantidad.reduce((s, f) => s + (parseInt(f.querySelector('.disp-cantidad').value, 10) || 0), 0);
+  const el = document.getElementById('dispatch-total');
+  if (el) el.textContent = conCantidad.length
+    ? `${conCantidad.length} de ${filas.length} productos · ${fmtCant(unidades)} unidades`
+    : 'Escribe cuánto está listo de cada producto';
+}
+
+// "Marcar todo completo": llena cada producto con lo que falta
 function despacharTodoLoQueHay() {
-  document.querySelectorAll('#dispatch-tbody tr[data-id]').forEach((fila) => {
-    if (fila.querySelector('.disp-cantidad').disabled) return;
-    fila.querySelector('.disp-cantidad').value = Math.min(Number(fila.dataset.pendiente) || 0, stockUbicacionFila(fila));
+  filasDespacho().forEach((fila) => {
+    fila.querySelector('.disp-cantidad').value = fila.dataset.pendiente;
     actualizarFaltaFila(fila);
   });
 }
@@ -497,14 +515,14 @@ function despacharTodoLoQueHay() {
 function guardarAvance() {
   const numero = document.getElementById('dispatch-panel').dataset.numero;
   const lineas = [];
-  document.querySelectorAll('#dispatch-tbody tr[data-id]').forEach((fila) => {
+  filasDespacho().forEach((fila) => {
     const cantidad = parseInt(fila.querySelector('.disp-cantidad').value, 10) || 0;
     // Se envían también los ceros para poder borrar un avance guardado por error
     if (cantidad > 0 || Number(fila.dataset.preparada) > 0) {
       lineas.push({ idArticulo: fila.dataset.id, cantidadPreparada: cantidad });
     }
   });
-  if (!lineas.length) { alert('No hay nada que guardar. Toca "✓ Completo" o escribe cuánto está listo.'); return; }
+  if (!lineas.length) { alert('No hay nada que guardar. Escribe cuánto está listo o toca "✓ Todo".'); return; }
 
   const btn = document.getElementById('dispatch-avance');
   btn.textContent = 'Guardando…';
@@ -517,7 +535,7 @@ function guardarAvance() {
     .then((resultado) => {
       if (resultado.ok) {
         document.getElementById('dispatch-panel').classList.remove('show');
-        alert('Avance guardado. Todavía no se despachó nada: cuando salga el camión, abre la orden y toca "Confirmar despacho".');
+        alert('Avance guardado. Todavía no se despachó nada: cuando salga el camión, abre la orden y toca "Despachar".');
         fetchOrdenes();
       } else {
         alert('Error: ' + (resultado.error || 'no se pudo guardar el avance'));
@@ -525,7 +543,7 @@ function guardarAvance() {
     })
     .catch((err) => alert('Error de conexión: ' + err.message))
     .finally(() => {
-      btn.textContent = '💾 Guardar avance (todavía no sale)';
+      btn.textContent = '💾 Guardar avance';
       btn.disabled = false;
     });
 }
@@ -533,23 +551,20 @@ function guardarAvance() {
 function confirmarDespacho() {
   const numero = document.getElementById('dispatch-panel').dataset.numero;
   const lineas = [];
-  const sinStock = [];
 
-  document.querySelectorAll('#dispatch-tbody tr[data-id]').forEach((fila) => {
+  filasDespacho().forEach((fila) => {
     const cantidad = parseInt(fila.querySelector('.disp-cantidad').value, 10) || 0;
     if (cantidad <= 0) return;
-    if (cantidad > stockUbicacionFila(fila)) sinStock.push(fila.dataset.descripcion);
     lineas.push({
       idArticulo: fila.dataset.id,
       descripcion: fila.dataset.descripcion,
-      idUbicacion: fila.querySelector('.disp-ubicacion').value,
+      idUbicacion: '',
       cantidadDespachar: cantidad
     });
   });
 
-  if (!lineas.length) { alert('No hay cantidades a despachar. Toca "✓ Completo" o escribe cuánto sale.'); return; }
-  if (sinStock.length) { alert('En la ubicación elegida no hay suficiente stock de:\n- ' + sinStock.join('\n- ') + '\n\nCambia la ubicación o pon una cantidad menor.'); return; }
-  const resumen = lineas.map((l) => `${l.descripcion}: ${l.cantidadDespachar}`).join('\n');
+  if (!lineas.length) { alert('No hay cantidades a despachar. Escribe cuánto sale o toca "✓ Todo".'); return; }
+  const resumen = lineas.map((l) => `${l.descripcion}: ${fmtCant(l.cantidadDespachar)}`).join('\n');
   if (!confirm('¿Confirmas que sale esto en el camión?\n\n' + resumen)) return;
 
   const confirmBtn = document.getElementById('dispatch-confirm');
@@ -558,7 +573,7 @@ function confirmarDespacho() {
 
   fetch(API_URL, {
     method: 'POST',
-    body: JSON.stringify({ action: 'despachar_orden', numero, lineas, usuario: 'almacenero' })
+    body: JSON.stringify({ action: 'despachar_orden', numero, lineas, usuario: 'almacenero', descontarStock: DESCONTAR_STOCK_EN_DESPACHO })
   })
     .then((r) => r.json())
     .then((resultado) => {
@@ -566,13 +581,16 @@ function confirmarDespacho() {
         document.getElementById('dispatch-panel').classList.remove('show');
         mostrarGuia(numero, resultado.guia, resultado.idDespacho, resultado.estado);
         fetchOrdenes();
+      } else if (/ubicaci[oó]n/i.test(resultado.error || '')) {
+        // El Apps Script publicado todavía es la versión que exige stock
+        alert('El servidor del ERP aún pide ubicación y stock para despachar.\nHay que publicar la nueva versión del Apps Script (Codigo.gs).');
       } else {
         alert('Error: ' + resultado.error);
       }
     })
     .catch((err) => alert('Error de conexión: ' + err.message))
     .finally(() => {
-      confirmBtn.textContent = '🚚 Confirmar despacho';
+      confirmBtn.textContent = '🚚 Despachar';
       confirmBtn.disabled = false;
     });
 }
@@ -711,10 +729,12 @@ function mostrarGuia(numero, guia, idDespacho, estado, fechaDespacho) {
   const fmt = (n) => (Number(n) || 0).toLocaleString('es-PE');
   const fecha = new Date(fechaDespacho || Date.now()).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const total = guia.reduce((s, g) => s + (Number(g.cantidad) || 0), 0);
+  // Mientras el despacho no se amarra al stock no hay ubicación: la columna no se muestra
+  const conUbic = guia.some((g) => g.ubicacion);
   const filas = guia.map((g, i) => `
     <tr>
       <td class="hoja-centro">${i + 1}</td><td>${escHoja(g.id)}</td><td>${escHoja(g.descripcion)}</td>
-      <td class="hoja-num">${fmt(g.cantidad)}</td><td>${escHoja(g.ubicacion)}</td><td></td>
+      <td class="hoja-num">${fmt(g.cantidad)}</td>${conUbic ? `<td>${escHoja(g.ubicacion)}</td>` : ''}<td></td>
     </tr>`).join('');
 
   document.getElementById('guia-print').innerHTML = `
@@ -738,10 +758,10 @@ function mostrarGuia(numero, guia, idDespacho, estado, fechaDespacho) {
       <table class="hoja-items">
         <thead><tr>
           <th style="width:30px;">Ítem</th><th style="width:50px;">Código</th><th>Producto</th>
-          <th style="width:80px;">Cantidad</th><th style="width:96px;">Ubicación</th><th style="width:34px;">✓</th>
+          <th style="width:80px;">Cantidad</th>${conUbic ? '<th style="width:96px;">Ubicación</th>' : ''}<th style="width:34px;">✓</th>
         </tr></thead>
         <tbody>${filas}</tbody>
-        <tfoot><tr><th colspan="3" style="text-align:right;">Total</th><th class="hoja-num">${fmt(total)}</th><th colspan="2"></th></tr></tfoot>
+        <tfoot><tr><th colspan="3" style="text-align:right;">Total</th><th class="hoja-num">${fmt(total)}</th><th colspan="${conUbic ? 2 : 1}"></th></tr></tfoot>
       </table>
       <div class="hoja-obs"><strong>Observaciones</strong><div>${escHoja(d.notas.join(' · '))}</div></div>
       <div class="hoja-firmas">

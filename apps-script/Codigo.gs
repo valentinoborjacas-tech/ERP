@@ -569,8 +569,11 @@ function guardarAvanceOrden(data) {
 }
 
 function despacharOrden(data) {
-  // data esperado: { numero, lineas: [{idArticulo, descripcion, idUbicacion, cantidadDespachar}], usuario }
+  // data esperado: { numero, lineas: [{idArticulo, descripcion, idUbicacion, cantidadDespachar}], usuario, descontarStock }
+  // descontarStock === false: mientras el stock de bolsas aún se está cargando, el despacho se registra
+  // (guía, cantidades despachadas, estado) SIN pedir ubicación ni validar/descontar stock.
   const numero = String(data.numero || '');
+  const descontarStock = data.descontarStock !== false;
   if (!numero) return { ok: false, error: 'Falta el número de orden' };
 
   const lock = LockService.getScriptLock();
@@ -612,7 +615,7 @@ function despacharOrden(data) {
       const idArt = String(l.idArticulo);
       const fila = filasOrden.find(function (i) { return String(values[i][colId]) === idArt; });
       if (fila === undefined) { errores.push(idArt + ': no pertenece a esta orden'); return; }
-      if (!l.idUbicacion) { errores.push(idArt + ': elige de qué ubicación sale'); return; }
+      if (descontarStock && !l.idUbicacion) { errores.push(idArt + ': elige de qué ubicación sale'); return; }
 
       if (pendientePorFila[fila] === undefined) {
         pendientePorFila[fila] = Math.max((Number(values[fila][colCantSol]) || 0) - (Number(values[fila][colCantDesp]) || 0), 0);
@@ -620,13 +623,15 @@ function despacharOrden(data) {
       if (cantidad > pendientePorFila[fila]) {
         errores.push(idArt + ': solo quedan ' + pendientePorFila[fila] + ' por despachar'); return;
       }
-      const clave = idArt + '|' + String(l.idUbicacion);
-      if (stock[clave] === undefined) { errores.push(idArt + ': no está en la ubicación ' + l.idUbicacion); return; }
-      if (cantidad > stock[clave]) { errores.push(idArt + ': en ' + l.idUbicacion + ' solo hay ' + stock[clave]); return; }
+      if (descontarStock) {
+        const clave = idArt + '|' + String(l.idUbicacion);
+        if (stock[clave] === undefined) { errores.push(idArt + ': no está en la ubicación ' + l.idUbicacion); return; }
+        if (cantidad > stock[clave]) { errores.push(idArt + ': en ' + l.idUbicacion + ' solo hay ' + stock[clave]); return; }
+        stock[clave] -= cantidad;
+      }
 
       pendientePorFila[fila] -= cantidad;
-      stock[clave] -= cantidad;
-      aplicar.push({ fila: fila, idArticulo: l.idArticulo, descripcion: l.descripcion || '', idUbicacion: l.idUbicacion, cantidad: cantidad });
+      aplicar.push({ fila: fila, idArticulo: l.idArticulo, descripcion: l.descripcion || '', idUbicacion: descontarStock ? l.idUbicacion : '', cantidad: cantidad });
     });
     if (errores.length) return { ok: false, error: errores.join('\n') };
     if (!aplicar.length) return { ok: false, error: 'No hay cantidades a despachar.' };
@@ -639,21 +644,23 @@ function despacharOrden(data) {
     const guia = [];
 
     aplicar.forEach(function (a) {
-      const mov = registrarMovimiento({
-        id_articulo: a.idArticulo,
-        id_ubicacion: a.idUbicacion,
-        tipo: 'Salida',
-        cantidad: a.cantidad,
-        motivo: 'Despacho ' + idDespacho + ' de orden ' + numero,
-        usuario: usuario
-      });
-      if (!mov.ok) throw new Error(a.idArticulo + ': ' + mov.error);
+      if (descontarStock) {
+        const mov = registrarMovimiento({
+          id_articulo: a.idArticulo,
+          id_ubicacion: a.idUbicacion,
+          tipo: 'Salida',
+          cantidad: a.cantidad,
+          motivo: 'Despacho ' + idDespacho + ' de orden ' + numero,
+          usuario: usuario
+        });
+        if (!mov.ok) throw new Error(a.idArticulo + ': ' + mov.error);
+      }
 
       const solicitada = Number(values[a.fila][colCantSol]) || 0;
       const despachada = (Number(values[a.fila][colCantDesp]) || 0) + a.cantidad;
       values[a.fila][colCantDesp] = despachada;
       const ubicPrevias = String(values[a.fila][colUbic] || '').split(', ').filter(Boolean);
-      if (ubicPrevias.indexOf(String(a.idUbicacion)) === -1) ubicPrevias.push(String(a.idUbicacion));
+      if (a.idUbicacion && ubicPrevias.indexOf(String(a.idUbicacion)) === -1) ubicPrevias.push(String(a.idUbicacion));
       detalleSheet.getRange(a.fila + 1, colCantDesp + 1).setValue(despachada);
       detalleSheet.getRange(a.fila + 1, colUbic + 1).setValue(ubicPrevias.join(', '));
       detalleSheet.getRange(a.fila + 1, colEstadoLinea + 1).setValue(despachada >= solicitada ? 'Despachado' : 'Parcial');
