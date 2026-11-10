@@ -324,15 +324,15 @@ function renderDespachoTabla(detalle, stock) {
     // Producto ya completo: se muestra, pero no se puede volver a despachar
     if (pendiente <= 0) {
       return `
-      <tr style="color:#888;">
-        <td>${linea.idArticulo}</td>
-        <td>${linea.descripcion}</td>
-        <td>${linea.cantidadSolicitada}</td>
-        <td>${despachado}</td>
-        <td class="col-disponible">—</td>
-        <td>—</td>
-        <td><span class="badge badge-ok">Ya salió todo</span></td>
-        <td>0</td>
+      <tr class="dsp-hecho" style="color:#888;">
+        <td data-label="ID">${linea.idArticulo}</td>
+        <td data-label="Descripción">${linea.descripcion}</td>
+        <td data-label="Pedido" class="dsp-num">${linea.cantidadSolicitada}</td>
+        <td data-label="Salió" class="dsp-num">${despachado}</td>
+        <td class="col-disponible dsp-num" data-label="Hay">—</td>
+        <td data-label="Ubicación" class="dsp-ubic">—</td>
+        <td data-label="Sale" class="dsp-sale"><span class="badge badge-ok">Ya salió todo</span></td>
+        <td data-label="Falta" class="dsp-num disp-falta">0</td>
       </tr>`;
     }
 
@@ -349,20 +349,20 @@ function renderDespachoTabla(detalle, stock) {
 
     return `
       <tr data-id="${linea.idArticulo}" data-descripcion="${linea.descripcion}" data-pendiente="${pendiente}" data-preparada="${preparada}">
-        <td>${linea.idArticulo}</td>
-        <td>${linea.descripcion}</td>
-        <td>${linea.cantidadSolicitada}</td>
-        <td>${despachado || '—'}</td>
-        <td class="col-disponible">${totalDisponible}${totalDisponible < pendiente ? ' ⚠️' : ''}</td>
-        <td><select class="input-classic disp-ubicacion"${ubicacionesDisponibles.length ? '' : ' disabled'}>${opcionesUbicacion}</select></td>
-        <td>
+        <td data-label="ID">${linea.idArticulo}</td>
+        <td data-label="Descripción">${linea.descripcion}</td>
+        <td data-label="Pedido" class="dsp-num">${linea.cantidadSolicitada}</td>
+        <td data-label="Salió" class="dsp-num">${despachado || '—'}</td>
+        <td class="col-disponible dsp-num${totalDisponible < pendiente ? ' dsp-poco' : ''}" data-label="Hay">${totalDisponible}${totalDisponible < pendiente ? ' ⚠️' : ''}</td>
+        <td data-label="Sale de" class="dsp-ubic"><select class="input-classic disp-ubicacion"${ubicacionesDisponibles.length ? '' : ' disabled'}>${opcionesUbicacion}</select></td>
+        <td data-label="Listo / sale" class="dsp-sale">
           <div class="disp-sale">
             <button type="button" class="btn-classic disp-completo"${ubicacionesDisponibles.length ? '' : ' disabled'}>✓ Completo</button>
             <input type="number" class="input-classic disp-cantidad" value="${preparada || ''}" placeholder="0" min="0" max="${pendiente}" inputmode="numeric"${ubicacionesDisponibles.length ? '' : ' disabled'} />
           </div>
           ${preparada ? `<div class="field-help" style="margin-top:2px;">Avance guardado: ${preparada}</div>` : ''}
         </td>
-        <td class="disp-falta"><strong>${pendiente}</strong></td>
+        <td data-label="Falta" class="dsp-num disp-falta"><strong>${pendiente}</strong></td>
       </tr>`;
   }).join('');
 

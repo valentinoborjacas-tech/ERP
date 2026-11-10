@@ -629,3 +629,60 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   .metrics-sidebar{ width:100%; flex-direction:row; }
   .metrics-sidebar .metric-card{ flex:1; }
 }
+
+/* Celular: preparar/despachar en tarjetas fáciles de usar con el dedo.
+   Producto arriba · Pedido / Salió / Hay / Falta en una fila · de qué ubicación sale · [✓ Completo] [cantidad] */
+@media (max-width: 767px){
+  table.dispatch-items tr{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    grid-template-areas:
+      "id   desc desc desc"
+      "n1   n2   n3   n4"
+      "ub   ub   ub   ub"
+      "sale sale sale sale";
+    gap:6px;
+    padding:10px;
+    margin-bottom:10px;
+  }
+  table.dispatch-items td{ padding:0; width:auto; min-width:0; }
+  table.dispatch-items td[data-label="ID"]{ grid-area:id; border:none; margin:0; padding:0; font-size:14px; align-self:center; }
+  table.dispatch-items td[data-label="Descripción"]{
+    grid-area:desc; display:block; font-weight:bold; font-size:14px; line-height:1.25; align-self:center; overflow-wrap:anywhere;
+  }
+  table.dispatch-items td[data-label="Descripción"]::before{ display:none; }
+
+  table.dispatch-items td.dsp-num{
+    flex-direction:column; justify-content:center; align-items:center; gap:0;
+    background:#f3f5f8; border-radius:4px; padding:5px 2px; font-size:15px;
+  }
+  table.dispatch-items td.dsp-num::before{ font-size:10px; font-weight:normal; letter-spacing:.3px; }
+  table.dispatch-items td[data-label="Pedido"]{ grid-area:n1; }
+  table.dispatch-items td[data-label="Salió"]{ grid-area:n2; }
+  table.dispatch-items td.col-disponible{ grid-area:n3; display:flex; }
+  table.dispatch-items td.col-disponible.dsp-poco{ background:#fdecea; }
+  table.dispatch-items td.disp-falta{ grid-area:n4; background:#fff4e0; }
+
+  table.dispatch-items td.dsp-ubic{ grid-area:ub; }
+  table.dispatch-items td.dsp-ubic::before{ font-size:11px; }
+  table.dispatch-items select.disp-ubicacion{ flex:1; min-width:0; width:100%; min-height:44px; }
+
+  table.dispatch-items td.dsp-sale{ grid-area:sale; display:block; }
+  table.dispatch-items td.dsp-sale::before{ display:none; }
+  table.dispatch-items .disp-sale{ gap:8px; }
+  table.dispatch-items .disp-completo{ flex:1; min-height:48px !important; font-size:16px !important; }
+  table.dispatch-items input.disp-cantidad{ flex:1; width:auto !important; min-height:48px; font-size:20px !important; text-align:center; font-weight:bold; }
+
+  /* Producto que ya salió completo: una sola línea gris */
+  table.dispatch-items tr.dsp-hecho{ grid-template-areas:"id desc desc desc" "sale sale sale sale"; padding:8px 10px; opacity:.75; }
+  table.dispatch-items tr.dsp-hecho td.dsp-num,
+  table.dispatch-items tr.dsp-hecho td.dsp-ubic{ display:none; }
+
+  /* Botones de abajo: grandes, a todo el ancho y siempre a la vista al final de la pantalla */
+  #dispatch-panel > .flex.justify-end.mt-3{
+    position:sticky; bottom:0; z-index:5; background:var(--panel-bg, #fff);
+    padding:8px 0; margin-top:4px; box-shadow:0 -4px 8px rgba(0,0,0,.08);
+  }
+  #dispatch-panel > .flex.justify-end.mt-3 .btn-classic,
+  #dispatch-todo{ flex:1 1 100%; width:100%; min-height:48px; font-size:15px; }
+}
