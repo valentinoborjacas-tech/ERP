@@ -8,18 +8,14 @@ let stockMapOc = {};
 window.initOrdenesModule = function () {
   fetchOrdenes();
 
-  document.getElementById('ord-search-input').addEventListener('keyup', renderOrdenesFiltered);
-  document.getElementById('ord-filter-estado').addEventListener('change', renderOrdenesFiltered);
+  document.getElementById('ord-search-input').addEventListener('input', renderOrdenesFiltered);
+  document.querySelectorAll('.ord-tab').forEach((tab) => tab.addEventListener('click', () => {
+    vistaOrdenes = tab.dataset.vista;
+    document.querySelectorAll('.ord-tab').forEach((t) => t.classList.toggle('active', t === tab));
+    renderOrdenesFiltered();
+  }));
 
-  document.getElementById('btn-nueva-orden').addEventListener('click', abrirNuevaOrden);
-  document.getElementById('new-order-close').addEventListener('click', () => {
-    document.getElementById('new-order-panel').classList.remove('show');
-  });
-  document.getElementById('no-buscar-producto').addEventListener('keyup', buscarProductoParaOrden);
-  document.getElementById('no-agregar-linea').addEventListener('click', agregarLineaSeleccionada);
-  document.getElementById('new-order-confirm').addEventListener('click', crearOrdenNueva);
-
-  document.getElementById('ordenes-tbody').addEventListener('click', handleOrdenesClick);
+  document.getElementById('ordenes-lista').addEventListener('click', handleOrdenesClick);
 
   document.getElementById('dispatch-panel-close').addEventListener('click', () => {
   document.getElementById('dispatch-panel').classList.remove('show');
@@ -36,29 +32,33 @@ window.initOrdenesModule = function () {
   document.getElementById('guia-panel').classList.remove('show');
   });
   document.getElementById('guia-imprimir').addEventListener('click', () => imprimirDocumento(document.getElementById('guia-print').innerHTML));
-  document.getElementById('btn-subir-oc').addEventListener('click', () => {
-  document.getElementById('oc-panel').classList.add('show');
-  });
-  document.getElementById('oc-panel-close').addEventListener('click', () => {
-    document.getElementById('oc-panel').classList.remove('show');
-  });
-  document.getElementById('oc-file-input').addEventListener('change', manejarArchivoOC);
-
-  if (!catalogoOrdenes.length) {
-    fetch(`${API_URL}?action=articulos&_=${Date.now()}`, { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((data) => { catalogoOrdenes = data; });
-  }
 };
+
+let vistaOrdenes = 'activas';
 
 function fetchOrdenes() {
   fetch(`${API_URL}?action=ordenes&_=${Date.now()}`, { cache: 'no-store' })
     .then((r) => r.json())
     .then((data) => { ordenesData = data; renderOrdenesFiltered(); })
     .catch((err) => {
-      document.getElementById('ordenes-tbody').innerHTML = `<tr><td colspan="5">Error: ${err.message}</td></tr>`;
+      document.getElementById('ordenes-lista').innerHTML = `<div class="ord-vacio">No se pudieron cargar las órdenes: ${escHtml(err.message)}</div>`;
     });
 }
+
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// "30/10/2026" o "2026-10-30" → Date (sin hora), o null
+function fechaDeTexto(t) {
+  const s = String(t || '').trim();
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  return null;
+}
+const fechaCorta = (d) => d ? d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' }).replace('.', '') : '';
 
 function badgeEstadoOrden(estado) {
   if (estado === 'Pendiente') return 'badge-neutral';
@@ -68,49 +68,78 @@ function badgeEstadoOrden(estado) {
 }
 
 function renderOrdenesFiltered() {
-  const term = (document.getElementById('ord-search-input').value || '').toLowerCase();
-  const estadoFiltro = document.getElementById('ord-filter-estado').value;
+  const term = (document.getElementById('ord-search-input').value || '').toLowerCase().trim();
+  const esActiva = (o) => o.estado !== 'Despachada';
+  document.getElementById('ord-n-activas').textContent = ordenesData.filter(esActiva).length;
+  document.getElementById('ord-n-despachadas').textContent = ordenesData.filter((o) => !esActiva(o)).length;
 
-  const filtradas = ordenesData.filter((o) => {
-    const coincideTexto = !term || o.numero.toLowerCase().includes(term) || o.solicitante.toLowerCase().includes(term);
-    const coincideEstado = !estadoFiltro || o.estado === estadoFiltro;
-    return coincideTexto && coincideEstado;
-  });
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const lista = ordenesData
+    .filter((o) => (vistaOrdenes === 'activas') === esActiva(o))
+    .filter((o) => !term || [o.numero, o.solicitante, o.observaciones].join(' ').toLowerCase().includes(term))
+    .map((o) => ({ o, d: datosHojaOrden(o), entrega: fechaDeTexto(datosHojaOrden(o).entrega) }));
 
-  document.getElementById('ordenes-tbody').innerHTML = filtradas.length
-    ? filtradas.map(ordenRowHtml).join('')
-    : `<tr><td colspan="5">No se encontraron órdenes.</td></tr>`;
+  // Activas: la entrega más próxima primero. Despachadas: la más reciente primero.
+  lista.sort((a, b) => vistaOrdenes === 'activas'
+    ? (a.entrega || new Date(8.64e15)) - (b.entrega || new Date(8.64e15))
+    : new Date(b.o.fecha) - new Date(a.o.fecha));
+
+  const cont = document.getElementById('ordenes-lista');
+  cont.innerHTML = lista.length
+    ? lista.map((x) => ordenCardHtml(x, hoy)).join('')
+    : `<div class="ord-vacio">${term ? 'Ninguna orden coincide con la búsqueda.' : vistaOrdenes === 'activas' ? '🎉 No hay órdenes pendientes.' : 'Todavía no hay órdenes despachadas.'}</div>`;
 }
 
-function ordenRowHtml(o) {
-  // Una orden despachada en parte sigue abierta para despachar lo que falta
-  const botonDespacho = o.estado === 'Despachada'
-    ? ''
-    : `<button class="btn-classic" style="padding:3px 8px; font-size:11.5px;" data-action="preparar" data-numero="${o.numero}">📦 ${{ 'Pendiente': 'Preparar', 'En preparación': 'Continuar' }[o.estado] || 'Despachar lo que falta'}</button>`;
-  // Las órdenes ya despachadas (en parte o completas) se pueden seguir consultando
-  const botonVer = o.estado === 'Pendiente'
-    ? ''
-    : `<button class="btn-classic" style="padding:3px 8px; font-size:11.5px;" data-action="ver" data-numero="${o.numero}">👁 Ver</button>`;
-  const botonHoja = `<button class="btn-classic" style="padding:3px 8px; font-size:11.5px;" data-action="hoja" data-numero="${o.numero}" title="Imprimir la hoja de la orden">🖨 Hoja</button>`;
-  const accion = `<div class="row-actions" style="flex-wrap:wrap;">${botonDespacho}${botonVer}${botonHoja}</div>`;
+function ordenCardHtml({ o, d, entrega }, hoy) {
+  const cls = { 'Pendiente': 'pendiente', 'En preparación': 'preparacion', 'Despachada parcial': 'parcial', 'Despachada': 'despachada' }[o.estado] || 'pendiente';
+  const activa = o.estado !== 'Despachada';
+
+  // Aviso de entrega: vencida / hoy / mañana
+  let chipEntrega = '';
+  if (entrega) {
+    const dias = Math.round((entrega - hoy) / 86400000);
+    const txt = !activa ? `Entrega ${fechaCorta(entrega)}`
+      : dias < 0 ? `Atrasada · ${fechaCorta(entrega)}`
+      : dias === 0 ? 'Entrega hoy'
+      : dias === 1 ? 'Entrega mañana'
+      : `Entrega ${fechaCorta(entrega)}`;
+    const tono = !activa ? '' : dias < 0 ? 'rojo' : dias <= 1 ? 'ambar' : '';
+    chipEntrega = `<span class="ord-chip ${tono}">📅 ${txt}</span>`;
+  }
+
+  const detalle = [d.sede && `Sede ${d.sede}`, d.oc && `OC ${d.oc.replace(/^[a-z]\s+/i, '')}`].filter(Boolean).map(escHtml).join(' · ');
+  const principal = activa
+    ? `<button class="ord-btn primario" data-action="preparar" data-numero="${escHtml(o.numero)}">📦 ${{ 'Pendiente': 'Preparar', 'En preparación': 'Continuar preparando' }[o.estado] || 'Despachar lo que falta'}</button>`
+    : '';
+  const ver = o.estado === 'Pendiente' ? '' : `<button class="ord-btn" data-action="ver" data-numero="${escHtml(o.numero)}">👁 Ver detalle</button>`;
+  const hoja = `<button class="ord-btn" data-action="hoja" data-numero="${escHtml(o.numero)}">🖨 Hoja</button>`;
 
   return `
-    <tr>
-      <td data-label="N° Orden">${o.numero}</td>
-      <td data-label="Fecha">${new Date(o.fecha).toLocaleString()}</td>
-      <td data-label="Solicitante">${o.solicitante}</td>
-      <td data-label="Estado"><span class="badge ${badgeEstadoOrden(o.estado)}">${o.estado}</span></td>
-      <td data-label="Acciones">${accion}</td>
-    </tr>`;
+    <article class="ord-card ${cls}">
+      <div class="ord-card-top">
+        <div class="ord-cliente">${escHtml(d.cliente || 'Sin cliente')}</div>
+        <span class="ord-estado ${cls}">${escHtml(o.estado)}</span>
+      </div>
+      ${detalle ? `<div class="ord-detalle">${detalle}</div>` : ''}
+      <div class="ord-meta">
+        <span class="ord-num">${escHtml(o.numero)}</span>
+        <span>Pedido ${fechaCorta(new Date(o.fecha))}</span>
+        ${chipEntrega}
+      </div>
+      <div class="ord-acciones">${principal}<div class="ord-sec">${ver}${hoja}</div></div>
+    </article>`;
 }
 
 function handleOrdenesClick(e) {
-  const btn = e.target.closest('[data-action="preparar"]');
-  if (btn) { abrirDespacho(btn.dataset.numero); return; }
-  const btnVer = e.target.closest('[data-action="ver"]');
-  if (btnVer) { abrirVerOrden(btnVer.dataset.numero); return; }
-  const btnHoja = e.target.closest('[data-action="hoja"]');
-  if (btnHoja) imprimirHojaOrden(btnHoja.dataset.numero);
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const numero = btn.dataset.numero;
+  const panel = { preparar: 'dispatch-panel', ver: 'order-view-panel' }[btn.dataset.action];
+  if (btn.dataset.action === 'preparar') abrirDespacho(numero);
+  else if (btn.dataset.action === 'ver') abrirVerOrden(numero);
+  else if (btn.dataset.action === 'hoja') { imprimirHojaOrden(numero); return; }
+  // El panel se abre arriba de la lista: se lleva la pantalla hasta él
+  if (panel) document.getElementById(panel).scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ---------- Ver una orden ya despachada (solo consulta) ----------
