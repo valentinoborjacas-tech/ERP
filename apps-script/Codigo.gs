@@ -56,6 +56,7 @@ function doGet(e) {
   if (action === 'materia_prima_stock') return jsonResponse(getMateriaPrimaStock());
   if (action === 'bovinas') return jsonResponse(getBovinas(e.parameter.id_material));
   if (action === 'produccion') return jsonResponse(getProduccion(e.parameter.id_manga));
+  if (action === 'mis_mangas') return jsonResponse(getMisMangas(e.parameter.operario));
   return jsonResponse({ error: 'Acción GET no reconocida: ' + action });
 }
 
@@ -77,6 +78,8 @@ function doPost(e) {
     if (data.action === 'iniciar_produccion') return jsonResponse(iniciarProduccion(data));
     if (data.action === 'terminar_produccion') return jsonResponse(terminarProduccion(data));
     if (data.action === 'soltar_produccion') return jsonResponse(soltarProduccion(data));
+    if (data.action === 'reservar_mangas') return jsonResponse(reservarMangas(data));
+    if (data.action === 'liberar_manga') return jsonResponse(liberarManga(data));
     if (data.action === 'leer_orden_imagen') return jsonResponse(leerOrdenImagen(data.imagen_base64, data.mime_type));
     if (data.action === 'conciliar_stock') return jsonResponse(conciliarStock(data));
     if (data.action === 'editar_bovina') return jsonResponse(editarBovina(data));
@@ -751,7 +754,7 @@ function ingresarBovinas(data) {
       const fila = new Array(nCols).fill('');
       const put = function (h, v) { const c = headers.indexOf(h); if (c !== -1) fila[c] = v; };
       put('ID_BOVINA', id); put('ID_MATERIAL', data.id_material);
-      put('PESO_INICIAL', peso); put('PESO_ACTUAL', peso);
+      put('PESO_INICIAL', kg(peso)); put('PESO_ACTUAL', kg(peso));
       put('PROVEEDOR', data.proveedor || ''); put('ALMACENERO', data.almacenero || '');
       put('ESTADO', 'Disponible'); put('ZONA', zona);
       put('ORIGEN', origen); put('GUIA', guia); put('OBSERVACION', observacion);
@@ -794,6 +797,47 @@ function fechaIngresoBovina(b) {
   return v instanceof Date ? v.toISOString() : (v || '');
 }
 
+// Todos los pesos se guardan con 2 decimales. Las restas en JavaScript dejan "colas"
+// (59.4 - 1.5 = 57.900000000000006) que luego no cuadran en las fórmulas del Sheet.
+function kg(x) { return Math.round((Number(x) || 0) * 100) / 100; }
+function millaresRedondo(x) { return Math.round((Number(x) || 0) * 1000) / 1000; }
+
+/**
+ * EJECÚTALA UNA SOLA VEZ desde el editor: redondea a 2 decimales los pesos que ya están guardados
+ * en BOVINAS (PESO_INICIAL, PESO_ACTUAL) y PRODUCCION (PESO_MANGA_INICIO, PESO_TUCO, PESO_UTILIZADO),
+ * y los millares a 3 decimales. No cambia nada más.
+ */
+function redondearPesosGuardados() {
+  const tareas = [
+    { hoja: SHEET_BOVINAS, cols: { PESO_INICIAL: kg, PESO_ACTUAL: kg } },
+    { hoja: SHEET_PRODUCCION, cols: { PESO_MANGA_INICIO: kg, PESO_TUCO: kg, PESO_UTILIZADO: kg, MILLARES: millaresRedondo } }
+  ];
+  const resumen = [];
+  tareas.forEach(function (t) {
+    const sh = getSheet(t.hoja);
+    const last = sh.getLastRow();
+    if (last < 2) return;
+    const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+    Object.keys(t.cols).forEach(function (nombre) {
+      const c = headers.indexOf(nombre);
+      if (c === -1) return;
+      const rango = sh.getRange(2, c + 1, last - 1, 1);
+      let cambiados = 0;
+      const nuevos = rango.getValues().map(function (r) {
+        const v = r[0];
+        if (v === '' || v === null || typeof v !== 'number') return [v];
+        const nv = t.cols[nombre](v);
+        if (nv !== v) cambiados++;
+        return [nv];
+      });
+      rango.setValues(nuevos);
+      resumen.push(t.hoja + '.' + nombre + ': ' + cambiados + ' corregidos');
+    });
+  });
+  invalidarCacheStock();
+  Logger.log(resumen.join('\n'));
+}
+
 function getBovinas(idMaterial) {
   const bovinas = sheetToObjects(getSheet(SHEET_BOVINAS));
   const corridas = {};
@@ -805,15 +849,16 @@ function getBovinas(idMaterial) {
       return (!idMaterial || b.ID_MATERIAL === idMaterial) && b.ESTADO !== 'Eliminado' && b.ESTADO !== 'Faltante';
     })
     .map(function (b) {
-      const estado = b.ESTADO === 'En proceso'
-        ? 'En proceso'
+      const estado = (b.ESTADO === 'En proceso' || b.ESTADO === 'Reservada')
+        ? b.ESTADO
         : ((Number(b.PESO_ACTUAL) || 0) > 0 ? 'Disponible' : 'Agotada');
       return {
         idBovina: b.ID_BOVINA, proveedor: b.PROVEEDOR || '', almacenero: b.ALMACENERO || '',
         zona: b.ZONA || '',
         origen: b.ORIGEN || '', guia: b.GUIA || '', observacion: b.OBSERVACION || '',
-        fecha: fechaIngresoBovina(b), pesoInicial: Number(b.PESO_INICIAL) || 0,
-        pesoActual: Number(b.PESO_ACTUAL) || 0, nCorridas: corridas[b.ID_BOVINA] || 0, estado: estado
+        fecha: fechaIngresoBovina(b), pesoInicial: kg(b.PESO_INICIAL),
+        pesoActual: kg(b.PESO_ACTUAL), nCorridas: corridas[b.ID_BOVINA] || 0, estado: estado,
+        reservadaPor: b.ESTADO === 'Reservada' ? (b.RESERVADA_POR || '') : ''
       };
     });
 }
@@ -870,9 +915,13 @@ function getProduccion(idManga) {
       fecha: p['FECHA/HORA'] instanceof Date ? p['FECHA/HORA'].toISOString() : p['FECHA/HORA'],
       operario: p.OPERARIO, idManga: p.ID_MANGA, idMaterial: p.ID_MATERIAL || '', proveedor: p.PROVEEDOR,
       litros: p.LITROS, ancho: p.ANCHO, largo: p.LARGO, espesor: p.ESPESOR,
-      millares: p.MILLARES, pesoMangaInicio: p.PESO_MANGA_INICIO, pesoTuco: p.PESO_TUCO,
-      pesoUtilizado: p.PESO_UTILIZADO, estadoFinal: p.ESTADO_FINAL,
-      idProduccion: p.ID_PRODUCCION || '', estadoProceso: p.ESTADO_PROCESO || '', observaciones: p.OBSERVACIONES || ''
+      millares: p.MILLARES === '' ? '' : millaresRedondo(p.MILLARES),
+      pesoMangaInicio: p.PESO_MANGA_INICIO === '' ? '' : kg(p.PESO_MANGA_INICIO),
+      pesoTuco: p.PESO_TUCO === '' ? '' : kg(p.PESO_TUCO),
+      pesoUtilizado: p.PESO_UTILIZADO === '' ? '' : kg(p.PESO_UTILIZADO), estadoFinal: p.ESTADO_FINAL,
+      idProduccion: p.ID_PRODUCCION || '', estadoProceso: p.ESTADO_PROCESO || '', observaciones: p.OBSERVACIONES || '',
+      fechaFin: p.FECHA_FIN instanceof Date ? p.FECHA_FIN.toISOString() : (p.FECHA_FIN || ''),
+      duracionMin: p.DURACION_MIN === '' || p.DURACION_MIN == null ? '' : Number(p.DURACION_MIN)
     };
   });
   return idManga ? resultado.filter(function (p) { return p.idManga === idManga; }) : resultado;
@@ -883,7 +932,7 @@ function getProduccion(idManga) {
 function registrarProduccion(data) {
   const bovSheet = getSheet(SHEET_BOVINAS);
   const prodSheet = getSheet(SHEET_PRODUCCION);
-  const pesoUtilizado = Number(data.peso_manga_inicio || 0) - Number(data.peso_tuco || 0);
+  const pesoUtilizado = kg(Number(data.peso_manga_inicio || 0) - Number(data.peso_tuco || 0));
   const ahora = new Date();
 
   const values = bovSheet.getDataRange().getValues();
@@ -898,7 +947,7 @@ function registrarProduccion(data) {
   for (let i = 1; i < values.length; i++) {
     if (values[i][colId] === data.id_manga) {
       idMaterial = values[i][colMaterial];
-      const nuevo = Math.max(0, (Number(values[i][colPeso]) || 0) - pesoUtilizado);
+      const nuevo = kg(Math.max(0, (Number(values[i][colPeso]) || 0) - pesoUtilizado));
       bovSheet.getRange(i + 1, colPeso + 1).setValue(nuevo);
       if (nuevo <= 0) bovSheet.getRange(i + 1, colEstado + 1).setValue('Agotada');
       encontrada = true;
@@ -910,7 +959,7 @@ function registrarProduccion(data) {
   prodSheet.appendRow([
     ahora, data.operario, data.id_manga, data.proveedor || '', data.litros || '',
     data.ancho || '', data.largo || '', data.espesor || '', data.millares || '',
-    data.peso_manga_inicio, data.peso_tuco, pesoUtilizado, data.estado_final || 'No terminado',
+    kg(data.peso_manga_inicio), kg(data.peso_tuco), pesoUtilizado, data.estado_final || 'No terminado',
     idMaterial
   ]);
 
@@ -966,7 +1015,7 @@ function conciliarStock(data) {
 
     data.cambios.forEach(function (c) {
       if (c.tipo === 'alta') {
-        const peso = Number(c.peso);
+        const peso = kg(c.peso);
         if (!(peso > 0)) { errores.push('Alta con peso inválido'); return; }
         const idBovina = 'BOV-' + String(bovSheet.getLastRow()).padStart(4, '0');
         bovSheet.appendRow([idBovina, data.id_material, peso, peso, '', operario + ' (conteo)', ahora, 'Disponible']);
@@ -983,17 +1032,17 @@ function conciliarStock(data) {
       const pesoAnt = Number(values[i][cAct]) || 0;
 
       if (c.tipo === 'corregir') {
-        const nuevo = Number(c.peso_nuevo);
+        const nuevo = kg(c.peso_nuevo);
         if (!(nuevo > 0)) { errores.push(c.id_bovina + ': peso inválido'); return; }
         const delta = nuevo - pesoAnt;
-        const ini = (Number(values[i][cIni]) || 0) + delta;
+        const ini = kg((Number(values[i][cIni]) || 0) + delta);
         bovSheet.getRange(i + 1, cAct + 1).setValue(nuevo);
         bovSheet.getRange(i + 1, cIni + 1).setValue(ini);
         values[i][cAct] = nuevo; values[i][cIni] = ini;
         ajustes.appendRow([ahora, 'CORRECCION', data.id_material, c.id_bovina, pesoAnt, nuevo, operario, data.nota || '']);
         res.corregidas++;
       } else if (c.tipo === 'faltante') {
-        const ini = (Number(values[i][cIni]) || 0) - pesoAnt;
+        const ini = kg((Number(values[i][cIni]) || 0) - pesoAnt);
         bovSheet.getRange(i + 1, cAct + 1).setValue(0);
         bovSheet.getRange(i + 1, cIni + 1).setValue(ini);
         bovSheet.getRange(i + 1, cEst + 1).setValue('Faltante');
@@ -1036,7 +1085,7 @@ function editarBovina(data) {
     if ([cId, cIni, cAct, cMat, h.indexOf('ESTADO')].some(function (c) { return c < 0; })) {
       return { ok: false, error: 'Faltan columnas en BOVINAS' };
     }
-    const nuevo = Number(data.peso_nuevo);
+    const nuevo = kg(data.peso_nuevo);
     if (!(nuevo > 0)) return { ok: false, error: 'Peso inválido' };
 
     for (let i = 1; i < values.length; i++) {
@@ -1193,13 +1242,28 @@ function iniciarProduccion(data) {
     if (!hit) return { ok: false, error: 'No se encontró la manga ' + data.id_manga };
 
     const fila = hit.getRow();
+    asegurarColumna(bovSheet, 'RESERVADA_POR');
     const lastCol = bovSheet.getLastColumn();
     const headers = bovSheet.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
     const row = bovSheet.getRange(fila, 1, 1, lastCol).getValues()[0];
     const colMaterial = headers.indexOf('ID_MATERIAL'), colEstado = headers.indexOf('ESTADO');
+    const colRes = headers.indexOf('RESERVADA_POR'), colAct = headers.indexOf('PESO_ACTUAL');
     const estado = String(row[colEstado]);
+    const reservadaPor = String(row[colRes] || '').trim();
+    const operario = String(data.operario || '').trim();
+    if (!operario) return { ok: false, error: 'Falta el nombre del operario.' };
     if (estado === 'En proceso') return { ok: false, error: 'Esa manga ya está siendo usada por otro operario.' };
     if (estado === 'Eliminado' || estado === 'Faltante') return { ok: false, error: 'Esa manga no está disponible.' };
+    if (estado === 'Reservada' && reservadaPor.toUpperCase() !== operario.toUpperCase()) {
+      return { ok: false, error: 'Esa manga está reservada por ' + reservadaPor + '.' };
+    }
+    if (!((Number(row[colAct]) || 0) > 0)) return { ok: false, error: 'Esa manga ya no tiene peso.' };
+
+    // Solo una manga en proceso a la vez por operario (las demás esperan reservadas en su espacio)
+    const enCurso = sheetToObjects(prodSheet).find(function (p) {
+      return String(p.ESTADO_PROCESO) === 'En proceso' && String(p.OPERARIO || '').trim().toUpperCase() === operario.toUpperCase();
+    });
+    if (enCurso) return { ok: false, error: 'Ya tienes la manga ' + enCurso.ID_MANGA + ' en proceso. Termínala o suéltala primero.' };
 
     bovSheet.getRange(fila, colEstado + 1).setValue('En proceso');
 
@@ -1224,16 +1288,27 @@ function terminarProduccion(data) {
   const hit = prodSheet.createTextFinder(String(data.id_produccion)).matchEntireCell(true).findNext();
   if (!hit) return { ok: false, error: 'No se encontró la tarea de producción.' };
 
+  // Columnas del tiempo de producción (se crean solas la primera vez)
+  asegurarColumna(prodSheet, 'FECHA_FIN');
+  asegurarColumna(prodSheet, 'DURACION_MIN');
+
   const filaProd = hit.getRow();
   const nCols = prodSheet.getLastColumn();
   const headers = prodSheet.getRange(1, 1, 1, nCols).getValues()[0].map(String);
   const rowRange = prodSheet.getRange(filaProd, 1, 1, nCols);
   const row = rowRange.getValues()[0];
   const idManga = row[headers.indexOf('ID_MANGA')];
+  if (String(row[headers.indexOf('ESTADO_PROCESO')]) === 'Terminado') return { ok: false, error: 'Esa tarea ya fue cerrada.' };
 
-  const pesoInicio = Number(data.peso_manga_inicio || 0);
-  const pesoTuco = Number(data.peso_tuco || 0);
-  const pesoUtilizado = Math.max(pesoInicio - pesoTuco, 0);
+  const pesoInicio = kg(data.peso_manga_inicio);
+  const pesoTuco = kg(data.peso_tuco);
+  const pesoUtilizado = kg(Math.max(pesoInicio - pesoTuco, 0));
+
+  // Tiempo: desde que se inició (FECHA/HORA) hasta ahora
+  const fin = new Date();
+  const inicio = row[headers.indexOf('FECHA/HORA')];
+  const esFecha = Object.prototype.toString.call(inicio) === '[object Date]' && !isNaN(inicio.getTime());
+  const duracionMin = esFecha ? Math.max(0, Math.round((fin.getTime() - inicio.getTime()) / 60000)) : '';
 
   const set = function (nombre, valor) {
     const c = headers.indexOf(nombre);
@@ -1243,13 +1318,15 @@ function terminarProduccion(data) {
   set('ANCHO', data.ancho || '');
   set('LARGO', data.largo || '');
   set('ESPESOR', data.espesor || '');
-  set('MILLARES', data.millares || '');
+  set('MILLARES', data.millares ? millaresRedondo(data.millares) : '');
   set('PESO_MANGA_INICIO', pesoInicio);
   set('PESO_TUCO', pesoTuco);
   set('PESO_UTILIZADO', pesoUtilizado);
   set('ESTADO_FINAL', data.estado_final || 'Terminado');
   set('OBSERVACIONES', data.observaciones || '');
   set('ESTADO_PROCESO', 'Terminado');
+  set('FECHA_FIN', fin);
+  set('DURACION_MIN', duracionMin);
   rowRange.setValues([row]);
 
   const bhit = bovSheet.createTextFinder(String(idManga)).matchEntireCell(true).findNext();
@@ -1257,11 +1334,14 @@ function terminarProduccion(data) {
     const bLast = bovSheet.getLastColumn();
     const bh = bovSheet.getRange(1, 1, 1, bLast).getValues()[0].map(String);
     const bRow = bovSheet.getRange(bhit.getRow(), 1, 1, bLast).getValues()[0];
-    const cPeso = bh.indexOf('PESO_ACTUAL'), cEst = bh.indexOf('ESTADO');
+    const cPeso = bh.indexOf('PESO_ACTUAL'), cEst = bh.indexOf('ESTADO'), cRes = bh.indexOf('RESERVADA_POR');
     const terminada = (data.estado_final || 'Terminado') === 'Terminado';
-    const nuevo = terminada ? 0 : Math.max(0, (Number(bRow[cPeso]) || 0) - pesoUtilizado);
+    const nuevo = terminada ? 0 : kg(Math.max(0, (Number(bRow[cPeso]) || 0) - pesoUtilizado));
+    const reservada = cRes !== -1 && String(bRow[cRes] || '').trim();
     bRow[cPeso] = nuevo;
-    bRow[cEst] = nuevo <= 0 ? 'Agotada' : 'Disponible';
+    // Si quedó un resto y estaba en el espacio del operario, sigue reservada para él
+    bRow[cEst] = nuevo <= 0 ? 'Agotada' : (reservada ? 'Reservada' : 'Disponible');
+    if (nuevo <= 0 && cRes !== -1) bRow[cRes] = '';
     bovSheet.getRange(bhit.getRow(), 1, 1, bLast).setValues([bRow]);
   }
 
@@ -1270,8 +1350,98 @@ function terminarProduccion(data) {
     ok: true,
     pesoUtilizado: pesoUtilizado,
     merma: pesoTuco,
-    mermaPct: pesoInicio > 0 ? (pesoTuco / pesoInicio) * 100 : 0
+    mermaPct: pesoInicio > 0 ? Math.round((pesoTuco / pesoInicio) * 1000) / 10 : 0,
+    duracionMin: duracionMin
   };
+}
+
+/* ====== RESERVA DE MANGAS ======
+   El operario lleva varias mangas a su espacio: quedan "Reservada" a su nombre y nadie más las ve
+   como disponibles. Sella una por una (iniciar → terminar) y puede devolver las que no use. */
+function reservarMangas(data) {
+  const operario = String(data.operario || '').trim();
+  const ids = Array.isArray(data.ids) ? data.ids.map(String).filter(Boolean) : [];
+  if (!operario) return { ok: false, error: 'Falta el nombre del operario.' };
+  if (!ids.length) return { ok: false, error: 'Elige al menos una manga.' };
+  if (ids.length > 20) return { ok: false, error: 'Máximo 20 mangas a la vez.' };
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const sh = getSheet(SHEET_BOVINAS);
+    const cRes = asegurarColumna(sh, 'RESERVADA_POR') - 1;
+    const cFec = asegurarColumna(sh, 'FECHA_RESERVA') - 1;
+    const values = sh.getDataRange().getValues();
+    const h = values[0].map(String);
+    const cId = h.indexOf('ID_BOVINA'), cEst = h.indexOf('ESTADO'), cAct = h.indexOf('PESO_ACTUAL');
+
+    // Validar todo antes de reservar (todo o nada)
+    const filas = [], errores = [];
+    ids.forEach(function (id) {
+      let i = -1;
+      for (let k = 1; k < values.length; k++) { if (String(values[k][cId]) === id) { i = k; break; } }
+      if (i === -1) { errores.push(id + ': no existe'); return; }
+      const est = String(values[i][cEst]);
+      if (est === 'Reservada') { errores.push(id + ': ya está reservada por ' + values[i][cRes]); return; }
+      if (est === 'En proceso') { errores.push(id + ': está en proceso'); return; }
+      if (['Eliminado', 'Faltante', 'Agotada'].indexOf(est) !== -1 || !((Number(values[i][cAct]) || 0) > 0)) { errores.push(id + ': no está disponible'); return; }
+      filas.push(i);
+    });
+    if (errores.length) return { ok: false, error: errores.join('\n') };
+
+    const ahora = new Date();
+    filas.forEach(function (i) {
+      sh.getRange(i + 1, cEst + 1).setValue('Reservada');
+      sh.getRange(i + 1, cRes + 1).setValue(operario);
+      sh.getRange(i + 1, cFec + 1).setValue(ahora);
+    });
+    invalidarCacheStock();
+    return { ok: true, reservadas: filas.length };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Devuelve una manga reservada al almacén (vuelve a estar disponible para todos)
+function liberarManga(data) {
+  const operario = String(data.operario || '').trim().toUpperCase();
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const sh = getSheet(SHEET_BOVINAS);
+    const values = sh.getDataRange().getValues();
+    const h = values[0].map(String);
+    const cId = h.indexOf('ID_BOVINA'), cEst = h.indexOf('ESTADO'), cRes = h.indexOf('RESERVADA_POR'), cFec = h.indexOf('FECHA_RESERVA');
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][cId]) !== String(data.id_bovina)) continue;
+      if (String(values[i][cEst]) !== 'Reservada') return { ok: false, error: 'Esa manga no está reservada.' };
+      if (cRes === -1 || String(values[i][cRes] || '').trim().toUpperCase() !== operario) return { ok: false, error: 'Esa manga está reservada por otra persona.' };
+      sh.getRange(i + 1, cEst + 1).setValue('Disponible');
+      sh.getRange(i + 1, cRes + 1).setValue('');
+      if (cFec !== -1) sh.getRange(i + 1, cFec + 1).setValue('');
+      invalidarCacheStock();
+      return { ok: true };
+    }
+    return { ok: false, error: 'No se encontró la manga ' + data.id_bovina };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Mangas reservadas por un operario (las que tiene en su espacio esperando ser selladas)
+function getMisMangas(operario) {
+  const op = String(operario || '').trim().toUpperCase();
+  if (!op) return [];
+  return sheetToObjects(getSheet(SHEET_BOVINAS))
+    .filter(function (b) { return String(b.ESTADO) === 'Reservada' && String(b.RESERVADA_POR || '').trim().toUpperCase() === op; })
+    .map(function (b) {
+      return {
+        idBovina: b.ID_BOVINA, idMaterial: b.ID_MATERIAL, proveedor: b.PROVEEDOR || '', zona: b.ZONA || '',
+        pesoActual: kg(b.PESO_ACTUAL), fecha: fechaIngresoBovina(b),
+        fechaReserva: b.FECHA_RESERVA instanceof Date ? b.FECHA_RESERVA.toISOString() : (b.FECHA_RESERVA || '')
+      };
+    })
+    .sort(function (a, b) { return String(a.fechaReserva).localeCompare(String(b.fechaReserva)); });
 }
 function limpiarTucosTerminados() {
   const bovSheet = getSheet(SHEET_BOVINAS);
@@ -1319,14 +1489,15 @@ function soltarProduccion(data) {
     const operario = cOper >= 0 ? pv[fila][cOper] : '';
     const idMaterial = cMat >= 0 ? pv[fila][cMat] : '';
 
-    // La manga vuelve a Disponible
+    // La manga vuelve a Disponible (o a "Reservada" si estaba en el espacio del operario)
     const bv = bovSheet.getDataRange().getValues();
     const bh = bv[0].map(String);
-    const bId = bh.indexOf('ID_BOVINA'), bEst = bh.indexOf('ESTADO'), bAct = bh.indexOf('PESO_ACTUAL');
+    const bId = bh.indexOf('ID_BOVINA'), bEst = bh.indexOf('ESTADO'), bAct = bh.indexOf('PESO_ACTUAL'), bRes = bh.indexOf('RESERVADA_POR');
     let pesoManga = '';
     for (let i = 1; i < bv.length; i++) {
       if (String(bv[i][bId]) === String(idManga)) {
-        if (String(bv[i][bEst]) === 'En proceso') bovSheet.getRange(i + 1, bEst + 1).setValue('Disponible');
+        const reservada = bRes !== -1 && String(bv[i][bRes] || '').trim();
+        if (String(bv[i][bEst]) === 'En proceso') bovSheet.getRange(i + 1, bEst + 1).setValue(reservada ? 'Reservada' : 'Disponible');
         pesoManga = bv[i][bAct];
         break;
       }

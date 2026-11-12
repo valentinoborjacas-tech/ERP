@@ -4,7 +4,21 @@ const MERMA_MAX_PCT = 5; // ← ajusta: % máximo de merma (tuco / peso manga) a
 let opNombre = '';
 let opMateriales = [];
 let opTarea = null;
+let opMisMangas = [];
+let opSeleccion = new Set();   // mangas marcadas para llevar al espacio
+let opRelojTimer = null;
 
+// Pesos siempre con 2 decimales (evita 57.900000000000006)
+const opKg = (x) => Math.round((Number(x) || 0) * 100) / 100;
+const opEsc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+// 75 → "1 h 15 min", 9 → "9 min"
+function opDuracionTexto(min) {
+  if (min === '' || min == null || isNaN(min)) return '—';
+  min = Math.max(0, Math.round(min));
+  const h = Math.floor(min / 60), m = min % 60;
+  return h ? `${h} h ${m} min` : `${m} min`;
+}
 
 window.initOperarioModule = function () {
   document.getElementById('op-select').addEventListener('change', () => {
@@ -21,20 +35,34 @@ window.initOperarioModule = function () {
   });
   document.getElementById('op-cambiar').addEventListener('click', () => {
     localStorage.removeItem('mi_avance_operario');
+    detenerReloj();
     document.getElementById('op-main').style.display = 'none';
     document.getElementById('op-selector').style.display = '';
   });
-    document.getElementById('op-codigo').addEventListener('input', opSugerir);
+  document.getElementById('op-codigo').addEventListener('input', opSugerir);
   document.getElementById('op-codigo').addEventListener('blur', () => setTimeout(() => {
     const b = document.getElementById('op-sugerencias'); if (b) b.style.display = 'none';
   }, 250));
-  document.getElementById('op-iniciar').addEventListener('click', iniciarTarea);
+  document.getElementById('op-reservar').addEventListener('click', reservarSeleccion);
   document.getElementById('op-peso-inicio').addEventListener('input', calcularCierre);
   document.getElementById('op-peso-tuco').addEventListener('input', calcularCierre);
   document.getElementById('op-terminar').addEventListener('click', terminarTarea);
   document.getElementById('op-soltar').addEventListener('click', soltarTarea);
-  document.getElementById('op-bovina').addEventListener('change', opActualizarBotonIniciar);
-  opActualizarBotonIniciar();
+
+  // Botones dentro de las listas (empezar, devolver, marcar)
+  document.getElementById('op-mis-mangas').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-op]');
+    if (!b) return;
+    if (b.dataset.op === 'empezar') iniciarTarea(b.dataset.id);
+    if (b.dataset.op === 'devolver') devolverManga(b.dataset.id);
+  });
+  document.getElementById('op-bovinas-lista').addEventListener('change', (e) => {
+    const chk = e.target.closest('input[type="checkbox"][data-id]');
+    if (!chk) return;
+    if (chk.checked) opSeleccion.add(chk.dataset.id); else opSeleccion.delete(chk.dataset.id);
+    chk.closest('.op-item').classList.toggle('marcada', chk.checked);
+    actualizarBotonReservar();
+  });
 
   const guardado = localStorage.getItem('mi_avance_operario');
   if (guardado) mostrarOperario(guardado);
@@ -49,29 +77,122 @@ function mostrarOperario(nombre) {
   refrescarTarea();
 }
 
+// Carga a la vez: la tarea en proceso, lo terminado hoy y las mangas reservadas del operario
 function refrescarTarea() {
-  fetch(`${API_URL}?action=produccion&_=${Date.now()}`, { cache: 'no-store' })
-    .then((r) => r.json())
-    .then((data) => {
+  Promise.all([
+    fetch(`${API_URL}?action=produccion&_=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json()),
+    fetch(`${API_URL}?action=mis_mangas&operario=${encodeURIComponent(opNombre)}&_=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json()).catch(() => [])
+  ])
+    .then(([data, mis]) => {
       const panelIniciar = document.getElementById('op-panel-iniciar');
       const panelActiva = document.getElementById('op-panel-activa');
       if (!panelIniciar || !panelActiva) return; // el módulo ya no está en pantalla
 
-      opTarea = data.find((p) =>
-        p.estadoProceso === 'En proceso' && (p.operario || '').toUpperCase() === opNombre.toUpperCase()
-      ) || null;
+      const mio = (p) => (p.operario || '').toUpperCase() === opNombre.toUpperCase();
+      opTarea = data.find((p) => p.estadoProceso === 'En proceso' && mio(p)) || null;
+      opMisMangas = Array.isArray(mis) ? mis : [];
+      renderHoy(data.filter((p) => mio(p) && p.estadoProceso === 'Terminado'));
+
       panelIniciar.style.display = opTarea ? 'none' : 'block';
       panelActiva.style.display = opTarea ? 'block' : 'none';
       if (opTarea) renderTareaActiva(opTarea);
-            else { cargarBovinasOp(); opCargarMateriales(); }
+      else { detenerReloj(); renderMisMangas(); cargarBovinasOp(); opCargarMateriales(); }
     })
     .catch((err) => alert('Error al cargar: ' + err.message));
 }
 
+// ---------- Mis mangas (reservadas) ----------
+function renderMisMangas() {
+  const cont = document.getElementById('op-mis-mangas');
+  if (!opMisMangas.length) {
+    cont.innerHTML = '<div class="op-vacio">No tienes mangas en tu espacio. Llévalas abajo 👇</div>';
+    return;
+  }
+  cont.innerHTML = opMisMangas.map((b, i) => `
+    <div class="op-item">
+      <div class="op-item-info">
+        <div class="op-item-titulo">${opEsc(b.idBovina)} <span class="op-item-mat">${opEsc(b.idMaterial)}</span></div>
+        <div class="op-item-sub">${opKg(b.pesoActual).toFixed(2)} kg · ${opEsc(b.proveedor || 'sin proveedor')}</div>
+      </div>
+      <div class="op-item-btns">
+        <button class="btn-classic" data-op="devolver" data-id="${opEsc(b.idBovina)}" title="Devolver al almacén">Devolver</button>
+        <button class="btn-classic btn-ingreso" data-op="empezar" data-id="${opEsc(b.idBovina)}">${i === 0 ? '▶ Empezar' : '▶ Empezar'}</button>
+      </div>
+    </div>`).join('');
+}
+
+// ---------- Mangas disponibles para llevar ----------
+function cargarBovinasOp() {
+  const codigo = document.getElementById('op-codigo').value.trim();
+  const cont = document.getElementById('op-bovinas-lista');
+  opSeleccion = new Set();
+  actualizarBotonReservar();
+  if (!codigo) { cont.innerHTML = '<div class="op-vacio">Escribe el código del material para ver sus mangas.</div>'; return; }
+  cont.innerHTML = '<div class="op-vacio">Buscando mangas…</div>';
+  fetch(`${API_URL}?action=bovinas&id_material=${encodeURIComponent(codigo)}&_=${Date.now()}`, { cache: 'no-store' })
+    .then((r) => r.json())
+    .then((data) => {
+      // Solo las que nadie está usando ni tiene reservadas
+      const disp = data.filter((b) => Number(b.pesoActual) > 0 && b.estado === 'Disponible');
+      // Las más antiguas primero, con sus días en almacén, para usarlas antes
+      const dias = (b) => (typeof diasDesdeIngreso === 'function' ? diasDesdeIngreso(b.fecha) : null);
+      disp.sort((a, b) => (dias(b) ?? -1) - (dias(a) ?? -1));
+      cont.innerHTML = disp.length
+        ? disp.map((b) => {
+            const d = dias(b);
+            const textoDias = d === null ? '' : ' · ' + (d === 0 ? 'ingresó hoy' : d === 1 ? '1 día' : d + ' días');
+            return `<label class="op-item op-item-check">
+                <input type="checkbox" data-id="${opEsc(b.idBovina)}" />
+                <div class="op-item-info">
+                  <div class="op-item-titulo">${opEsc(b.idBovina)} <span class="op-item-peso">${opKg(b.pesoActual).toFixed(2)} kg</span></div>
+                  <div class="op-item-sub">${opEsc(b.zona || 'sin zona')}${textoDias} · ${opEsc(b.proveedor || 'sin proveedor')}</div>
+                </div>
+              </label>`;
+          }).join('')
+        : '<div class="op-vacio">Sin mangas disponibles para este material.</div>';
+    })
+    .catch(() => { cont.innerHTML = '<div class="op-vacio">Error al buscar mangas.</div>'; });
+}
+
+function actualizarBotonReservar() {
+  const btn = document.getElementById('op-reservar');
+  if (!btn) return;
+  const n = opSeleccion.size;
+  btn.disabled = n === 0;
+  btn.style.opacity = n ? '1' : '.45';
+  btn.textContent = n ? `Llevar ${n} manga${n > 1 ? 's' : ''} a mi espacio` : 'Llevar a mi espacio';
+}
+
+function reservarSeleccion() {
+  const ids = [...opSeleccion];
+  if (!ids.length) return;
+  const btn = document.getElementById('op-reservar');
+  btn.disabled = true; btn.textContent = 'Reservando…';
+  fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'reservar_mangas', operario: opNombre, ids }) })
+    .then((r) => r.json())
+    .then((res) => {
+      if (!res.ok) { alert('No se pudo reservar:\n' + res.error); return; }
+      localStorage.setItem('prod_last_codigo', document.getElementById('op-codigo').value.trim());
+      refrescarTarea();
+    })
+    .catch((err) => alert('Error de conexión: ' + err.message))
+    .finally(() => actualizarBotonReservar());
+}
+
+function devolverManga(idManga) {
+  if (!confirm(`¿Devolver la manga ${idManga} al almacén?\n\nQuedará disponible para los demás.`)) return;
+  fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'liberar_manga', operario: opNombre, id_bovina: idManga }) })
+    .then((r) => r.json())
+    .then((res) => { if (!res.ok) alert('Error: ' + res.error); refrescarTarea(); })
+    .catch((err) => alert('Error de conexión: ' + err.message));
+}
+
+// ---------- Tarea en proceso ----------
 function renderTareaActiva(t) {
   document.getElementById('op-act-manga').textContent = t.idManga;
   document.getElementById('op-act-material').textContent = t.idMaterial;
   document.getElementById('op-act-detalle').textContent = 'Iniciada: ' + formatFechaOp(t.fecha);
+  iniciarReloj(t.fecha);
 
   document.getElementById('op-millares').value = '';
   document.getElementById('op-peso-inicio').value = '';
@@ -89,16 +210,30 @@ function renderTareaActiva(t) {
     .then((r) => r.json())
     .then((bovs) => {
       const b = bovs.find((x) => x.idBovina === t.idManga);
-      if (b) { document.getElementById('op-peso-inicio').value = b.pesoActual; calcularCierre(); }
+      if (b) { document.getElementById('op-peso-inicio').value = opKg(b.pesoActual); calcularCierre(); }
     });
 }
 
+// Reloj en vivo: cuánto tiempo lleva la manga en proceso
+function iniciarReloj(inicioIso) {
+  detenerReloj();
+  const el = document.getElementById('op-act-tiempo');
+  const inicio = new Date(inicioIso).getTime();
+  const pintar = () => {
+    if (!document.getElementById('op-act-tiempo')) { detenerReloj(); return; }
+    el.textContent = isNaN(inicio) ? '—' : opDuracionTexto((Date.now() - inicio) / 60000);
+  };
+  pintar();
+  opRelojTimer = setInterval(pintar, 30000);
+}
+function detenerReloj() { if (opRelojTimer) { clearInterval(opRelojTimer); opRelojTimer = null; } }
+
 function calcularCierre() {
-  const inicio = Number(document.getElementById('op-peso-inicio').value) || 0;
-  const tuco = Number(document.getElementById('op-peso-tuco').value) || 0;
+  const inicio = opKg(document.getElementById('op-peso-inicio').value);
+  const tuco = opKg(document.getElementById('op-peso-tuco').value);
   const pct = inicio > 0 ? (tuco / inicio) * 100 : 0;
 
-  document.getElementById('op-peso-utilizado').textContent = Math.max(inicio - tuco, 0).toFixed(2);
+  document.getElementById('op-peso-utilizado').textContent = opKg(Math.max(inicio - tuco, 0)).toFixed(2);
   document.getElementById('op-merma').textContent = tuco.toFixed(2);
   document.getElementById('op-merma-pct').textContent = pct.toFixed(1);
 
@@ -115,53 +250,20 @@ function calcularCierre() {
   }
 }
 
-function cargarBovinasOp() {
-  const codigo = document.getElementById('op-codigo').value.trim();
-  const select = document.getElementById('op-bovina');
-  if (!codigo) { select.innerHTML = '<option value="">— Escribe el código del material —</option>'; return; }
-  fetch(`${API_URL}?action=bovinas&id_material=${encodeURIComponent(codigo)}&_=${Date.now()}`, { cache: 'no-store' })
-    .then((r) => r.json())
-    .then((data) => {
-      const disp = data.filter((b) => Number(b.pesoActual) > 0 && b.estado !== 'En proceso');
-      // Las más antiguas primero, con sus días en almacén, para usarlas antes
-      const dias = (b) => (typeof diasDesdeIngreso === 'function' ? diasDesdeIngreso(b.fecha) : null);
-      disp.sort((a, b) => (dias(b) ?? -1) - (dias(a) ?? -1));
-      select.innerHTML = disp.length
-        ? '<option value="">Selecciona una manga...</option>' + disp.map((b) => {
-            const d = dias(b);
-            const textoDias = d === null ? '' : ' · ' + (d === 0 ? 'ingresó hoy' : d === 1 ? '1 día' : d + ' días');
-            return `<option value="${b.idBovina}" data-proveedor="${b.proveedor}">${b.idBovina} — ${Number(b.pesoActual).toFixed(1)} kg · ${b.zona || 'sin zona'}${textoDias} (${b.proveedor || 'sin proveedor'})</option>`;
-          }).join('')
-        : '<option value="">Sin mangas disponibles para este material</option>';
-    })
-    .catch(() => { select.innerHTML = '<option value="">Error al buscar mangas</option>'; });
-}
-
-function iniciarTarea() {
-  const idManga = document.getElementById('op-bovina').value;
-  if (!idManga) { alert('Selecciona una manga.'); return; }
-  const opcion = document.getElementById('op-bovina').selectedOptions[0];
-    if (!confirm(`¿Iniciar la manga ${idManga}?`)) return;
-
-  const btn = document.getElementById('op-iniciar');
-  btn.disabled = true; btn.textContent = 'Iniciando…';
+function iniciarTarea(idManga) {
+  const manga = opMisMangas.find((b) => b.idBovina === idManga);
+  if (!manga) return;
+  if (!confirm(`¿Empezar a sellar la manga ${idManga}?`)) return;
 
   fetch(API_URL, {
     method: 'POST',
-    body: JSON.stringify({
-      action: 'iniciar_produccion',
-      operario: opNombre,
-      id_manga: idManga,
-      proveedor: opcion.dataset.proveedor || ''
-    })
+    body: JSON.stringify({ action: 'iniciar_produccion', operario: opNombre, id_manga: idManga, proveedor: manga.proveedor || '' })
   })
     .then((r) => r.json())
     .then((res) => {
       if (res.ok) {
-        localStorage.setItem('prod_last_codigo', document.getElementById('op-codigo').value.trim());
-                opTarea = {
-          idProduccion: res.idProduccion, idManga: idManga,
-          idMaterial: document.getElementById('op-codigo').value.trim().toUpperCase(),
+        opTarea = {
+          idProduccion: res.idProduccion, idManga: idManga, idMaterial: manga.idMaterial,
           fecha: new Date().toISOString(), estadoProceso: 'En proceso', operario: opNombre
         };
         document.getElementById('op-panel-iniciar').style.display = 'none';
@@ -169,21 +271,21 @@ function iniciarTarea() {
         renderTareaActiva(opTarea);
       } else {
         alert('Error: ' + res.error);
+        refrescarTarea();
       }
     })
-    .catch((err) => alert('Error de conexión: ' + err.message))
-        .finally(() => { btn.textContent = '▶ Iniciar'; opActualizarBotonIniciar(); });
+    .catch((err) => alert('Error de conexión: ' + err.message));
 }
 
 function terminarTarea() {
   if (!opTarea) return;
   const bolsas = Math.round(Number(document.getElementById('op-millares').value) || 0);
-  const millares = bolsas / 1000; // internamente se guarda en miles
-  const inicio = Number(document.getElementById('op-peso-inicio').value) || 0;
+  const millares = Math.round(bolsas) / 1000; // internamente se guarda en miles
+  const inicio = opKg(document.getElementById('op-peso-inicio').value);
   const tucoTxt = document.getElementById('op-peso-tuco').value;
-  const tuco = Number(tucoTxt) || 0;
+  const tuco = opKg(tucoTxt);
 
-    if (bolsas <= 0) { alert('Ingresa la cantidad de bolsas selladas.'); return; }
+  if (bolsas <= 0) { alert('Ingresa la cantidad de bolsas selladas.'); return; }
   if (bolsas < 10 && !confirm(`Pusiste solo ${bolsas} bolsas.\n\n¿Es correcto?`)) return;
   if (bolsas >= 50000 && !confirm(`Pusiste ${bolsas.toLocaleString('es-PE')} bolsas.\n\n¿Es correcto?`)) return;
   if (inicio <= 0) { alert('Ingresa el peso de la manga.'); return; }
@@ -208,7 +310,7 @@ function terminarTarea() {
     body: JSON.stringify({
       action: 'terminar_produccion',
       id_produccion: opTarea.idProduccion,
-          millares,
+      millares,
       litros: Number(litros) || '',
       ancho: Number(ancho) || '',
       largo: Number(largo) || '',
@@ -226,19 +328,47 @@ function terminarTarea() {
         localStorage.setItem('prod_last_ancho', ancho);
         localStorage.setItem('prod_last_largo', largo);
         localStorage.setItem('prod_last_espesor', espesor);
-        alert(`Tarea cerrada y bobina liberada.\nPeso utilizado: ${res.pesoUtilizado.toFixed(2)} kg\nMerma: ${res.merma.toFixed(2)} kg (${res.mermaPct.toFixed(1)}%)`);
-                opTarea = null;
-        document.getElementById('op-panel-activa').style.display = 'none';
-        document.getElementById('op-panel-iniciar').style.display = 'block';
-        document.getElementById('op-codigo').value = '';
-        cargarBovinasOp();
-        opCargarMateriales();
+        alert(`Tarea cerrada.\nPeso utilizado: ${opKg(res.pesoUtilizado).toFixed(2)} kg\nMerma: ${opKg(res.merma).toFixed(2)} kg (${Number(res.mermaPct).toFixed(1)}%)` +
+          (res.duracionMin !== '' && res.duracionMin != null ? `\nTiempo: ${opDuracionTexto(res.duracionMin)}` : ''));
+        opTarea = null;
+        detenerReloj();
+        refrescarTarea(); // muestra la siguiente manga de su espacio
       } else {
         alert('Error: ' + res.error);
       }
     })
     .catch((err) => alert('Error de conexión: ' + err.message))
     .finally(() => { btn.disabled = false; btn.textContent = '■ Terminar y liberar'; });
+}
+
+// ---------- Lo terminado hoy ----------
+function renderHoy(lista) {
+  const cont = document.getElementById('op-hoy');
+  if (!cont) return;
+  const hoy = new Date().toDateString();
+  const deHoy = lista
+    .filter((p) => new Date(p.fechaFin || p.fecha).toDateString() === hoy)
+    .sort((a, b) => new Date(b.fechaFin || b.fecha) - new Date(a.fechaFin || a.fecha));
+  if (!deHoy.length) { cont.innerHTML = '<div class="op-vacio">Todavía no terminas mangas hoy.</div>'; return; }
+  const totalKg = deHoy.reduce((s, p) => s + (Number(p.pesoUtilizado) || 0), 0);
+  const totalBolsas = deHoy.reduce((s, p) => s + Math.round((Number(p.millares) || 0) * 1000), 0);
+  const conTiempo = deHoy.filter((p) => p.duracionMin !== '' && p.duracionMin != null);
+  const promedio = conTiempo.length ? conTiempo.reduce((s, p) => s + Number(p.duracionMin), 0) / conTiempo.length : null;
+  cont.innerHTML =
+    `<div class="op-hoy-resumen">
+       <div><span>Mangas</span><b>${deHoy.length}</b></div>
+       <div><span>Bolsas</span><b>${totalBolsas.toLocaleString('es-PE')}</b></div>
+       <div><span>Kg usados</span><b>${opKg(totalKg).toFixed(2)}</b></div>
+       <div><span>Tiempo promedio</span><b>${promedio === null ? '—' : opDuracionTexto(promedio)}</b></div>
+     </div>` +
+    deHoy.map((p) => `
+      <div class="op-item">
+        <div class="op-item-info">
+          <div class="op-item-titulo">${opEsc(p.idManga)} <span class="op-item-mat">${opEsc(p.idMaterial)}</span></div>
+          <div class="op-item-sub">${Math.round((Number(p.millares) || 0) * 1000).toLocaleString('es-PE')} bolsas · ${opKg(p.pesoUtilizado).toFixed(2)} kg · ${opEsc(p.estadoFinal || '')}</div>
+        </div>
+        <div class="op-item-tiempo">⏱ ${opDuracionTexto(p.duracionMin)}</div>
+      </div>`).join('');
 }
 
 function formatFechaOp(iso) {
@@ -250,11 +380,11 @@ function formatFechaOp(iso) {
 function actualizarPreviewBolsas() {
   const bolsas = Math.round(Number(document.getElementById('op-millares').value) || 0);
   const el = document.getElementById('op-bolsas-preview');
-  if (el) el.textContent = bolsas > 0 ? `= ${bolsas.toLocaleString('es-PE')} bolsas (${(bolsas / 1000).toFixed(3).replace(/\.?0+$/, '')} millares)` : '\u00A0';
+  if (el) el.textContent = bolsas > 0 ? `= ${bolsas.toLocaleString('es-PE')} bolsas (${(bolsas / 1000).toFixed(3).replace(/\.?0+$/, '')} millares)` : ' ';
 }
 function soltarTarea() {
   if (!opTarea) return;
-  if (!confirm(`¿Soltar la manga ${opTarea.idManga}?\n\nSe cancela esta tarea SIN registrar producción y la manga queda disponible para otro.\n\nSi ya sellaste algo, NO la sueltes: usa "Terminar y liberar" con estado "No terminado".`)) return;
+  if (!confirm(`¿Soltar la manga ${opTarea.idManga}?\n\nSe cancela esta tarea SIN registrar producción. La manga vuelve a tu espacio (o al almacén si no la habías reservado).\n\nSi ya sellaste algo, NO la sueltes: usa "Terminar y liberar" con estado "No terminado".`)) return;
 
   const btn = document.getElementById('op-soltar');
   btn.disabled = true; btn.textContent = 'Soltando…';
@@ -270,7 +400,8 @@ function soltarTarea() {
     .then((r) => r.json())
     .then((res) => {
       if (res.ok) {
-        alert(`Manga ${res.idManga} liberada. Ya puedes elegir otra.`);
+        alert(`Manga ${res.idManga} soltada.`);
+        detenerReloj();
         refrescarTarea();
       } else {
         alert('Error: ' + res.error);
@@ -279,14 +410,6 @@ function soltarTarea() {
     .catch((err) => alert('Error de conexión: ' + err.message))
     .finally(() => { btn.disabled = false; btn.textContent = '↩ Soltar manga (cancelar sin producir)'; });
 }
-  function opActualizarBotonIniciar() {
-    const btn = document.getElementById('op-iniciar');
-    const sel = document.getElementById('op-bovina');
-    if (!btn || !sel) return;
-    const ok = !!sel.value;
-    btn.disabled = !ok;
-    btn.style.opacity = ok ? '1' : '.45';
-  }
 function opCargarMateriales() {
   return fetch(`${API_URL}?action=materia_prima_stock&_=${Date.now()}`, { cache: 'no-store' })
     .then((r) => r.json())
@@ -317,8 +440,8 @@ function opSugerir() {
     return;
   }
   box.innerHTML = lista.map((m) =>
-    `<div class="op-sug-item" data-id="${m.id}" style="padding:12px 10px; border-bottom:1px solid #ddd; cursor:pointer; font-size:15px;">
-       <b>${m.id}</b> — ${m.descripcion || ''} <span style="color:#1a7f37;">· ${m.nBovinas} manga${m.nBovinas > 1 ? 's' : ''}</span>
+    `<div class="op-sug-item" data-id="${opEsc(m.id)}" style="padding:12px 10px; border-bottom:1px solid #ddd; cursor:pointer; font-size:15px;">
+       <b>${opEsc(m.id)}</b> — ${opEsc(m.descripcion || '')} <span style="color:#1a7f37;">· ${m.nBovinas} manga${m.nBovinas > 1 ? 's' : ''}</span>
      </div>`).join('');
   box.style.display = 'block';
   box.querySelectorAll('.op-sug-item').forEach((el) => {

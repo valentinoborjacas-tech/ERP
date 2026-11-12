@@ -630,6 +630,33 @@ table.data-grid td{ border:1px solid var(--grid-line); padding:4px 6px; }
   .metrics-sidebar .metric-card{ flex:1; }
 }
 
+/* ===== En planta (operario): mis mangas, mangas para llevar y lo de hoy ===== */
+.op-lista{ display:flex; flex-direction:column; gap:8px; }
+.op-vacio{ padding:14px; text-align:center; color:#777; background:#fafafa; border:1px dashed #ccc; border-radius:8px; font-size:14px; }
+.op-item{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; background:#fff; border:1px solid #d6dbe3; border-radius:10px; }
+.op-item-check{ cursor:pointer; justify-content:flex-start; min-height:56px; }
+.op-item-check input{ width:24px; height:24px; flex-shrink:0; accent-color:#0a3d7a; }
+.op-item.marcada{ border-color:#0a3d7a; background:#eef4fc; }
+.op-item-info{ flex:1; min-width:0; }
+.op-item-titulo{ font-size:16px; font-weight:700; color:#1d2733; }
+.op-item-mat, .op-item-peso{ font-size:13px; font-weight:600; color:#0a3d7a; background:#e7eef8; border-radius:6px; padding:1px 7px; margin-left:6px; }
+.op-item-sub{ font-size:13px; color:#5b6472; margin-top:2px; }
+.op-item-btns{ display:flex; gap:8px; flex-shrink:0; }
+.op-item-btns .btn-classic{ min-height:44px; padding:0 14px; font-size:15px; }
+.op-item-tiempo{ flex-shrink:0; font-weight:700; color:#0a3d7a; font-size:14px; }
+.op-activa-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px; }
+.op-reloj{ flex-shrink:0; font-size:18px; font-weight:700; color:#0a3d7a; background:#e7eef8; border-radius:10px; padding:6px 12px; }
+.op-hoy-resumen{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px; margin-bottom:4px; }
+.op-hoy-resumen > div{ background:#f3f5f8; border-radius:8px; padding:8px; text-align:center; display:flex; flex-direction:column; }
+.op-hoy-resumen span{ font-size:11px; color:#6b7480; text-transform:uppercase; letter-spacing:.3px; }
+.op-hoy-resumen b{ font-size:16px; color:#1d2733; }
+@media (max-width: 560px){
+  .op-item{ flex-wrap:wrap; }
+  .op-item-btns{ width:100%; }
+  .op-item-btns .btn-classic{ flex:1; }
+  .op-hoy-resumen{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+}
+
 /* ===== Órdenes: buscador, pestañas y lista en tarjetas ===== */
 .ord-toolbar{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:12px 0 16px; }
 .ord-search{
