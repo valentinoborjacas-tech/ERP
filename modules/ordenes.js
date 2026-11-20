@@ -38,16 +38,53 @@ window.initOrdenesModule = function () {
   document.getElementById('guia-compartir').addEventListener('click', compartirGuiaPdf);
   document.getElementById('guia-descargar').addEventListener('click', descargarGuiaPdf);
   prepararModalesOrdenes();
+  activarRefrescoOrdenes();
 };
 
 let vistaOrdenes = 'activas';
 
+// ---------- Refresco automático ----------
+// En el celular la pestaña queda abierta días: al volver a la app (o cada minuto mientras
+// se mira la lista) se vuelven a pedir las órdenes, así aparecen las nuevas de cobranzas.
+let refrescoOrdenesTimer = null;
+let refrescoOrdenesListo = false;
+
+function ordenesEnPantalla() {
+  return !!document.getElementById('ordenes-lista') && document.visibilityState === 'visible';
+}
+
+function refrescarOrdenesSiCorresponde() {
+  if (!ordenesEnPantalla()) return;
+  if (modalesAbiertos().length) return; // no interrumpir mientras se prepara/despacha
+  fetchOrdenes();
+}
+
+function activarRefrescoOrdenes() {
+  if (!refrescoOrdenesListo) {
+    refrescoOrdenesListo = true;
+    document.addEventListener('visibilitychange', refrescarOrdenesSiCorresponde);
+    window.addEventListener('focus', refrescarOrdenesSiCorresponde);
+    window.addEventListener('pageshow', (e) => { if (e.persisted) refrescarOrdenesSiCorresponde(); });
+  }
+  clearInterval(refrescoOrdenesTimer);
+  refrescoOrdenesTimer = setInterval(() => {
+    if (!document.getElementById('ordenes-lista')) { clearInterval(refrescoOrdenesTimer); return; }
+    refrescarOrdenesSiCorresponde();
+  }, 60000);
+}
+
 function fetchOrdenes() {
   fetch(`${API_URL}?action=ordenes&_=${Date.now()}`, { cache: 'no-store' })
     .then((r) => r.json())
-    .then((data) => { ordenesData = data; renderOrdenesFiltered(); })
+    .then((data) => {
+      if (!Array.isArray(data)) throw new Error('respuesta inesperada del servidor');
+      ordenesData = data;
+      if (document.getElementById('ordenes-lista')) renderOrdenesFiltered();
+    })
     .catch((err) => {
-      document.getElementById('ordenes-lista').innerHTML = `<div class="ord-vacio">No se pudieron cargar las órdenes: ${escHtml(err.message)}</div>`;
+      const lista = document.getElementById('ordenes-lista');
+      if (!lista || ordenesData.length) return; // si ya hay órdenes en pantalla, se dejan
+      lista.innerHTML = `<div class="ord-vacio">No se pudieron cargar las órdenes: ${escHtml(err.message)}</div>`;
     });
 }
 
