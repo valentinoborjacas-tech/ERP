@@ -35,6 +35,8 @@ window.initOrdenesModule = function () {
   document.getElementById('guia-panel').classList.remove('show');
   });
   document.getElementById('guia-imprimir').addEventListener('click', () => imprimirDocumento(document.getElementById('guia-print').innerHTML));
+  document.getElementById('guia-compartir').addEventListener('click', compartirGuiaPdf);
+  document.getElementById('guia-descargar').addEventListener('click', descargarGuiaPdf);
   prepararModalesOrdenes();
 };
 
@@ -247,7 +249,8 @@ function renderVerOrdenDetalle(detalle) {
               // Producto separado pero aún sin despachar
               let est = l.estadoLinea || 'Pendiente';
               if (est === 'Pendiente' && listo > 0) est = listo >= solicitado - despachado ? 'Listo' : 'En preparación';
-              const cls = badgeLinea[est] || (est === 'Listo' || est === 'En preparación' ? 'badge-preparacion' : 'badge-neutral');
+              else if (est !== 'Despachado' && l.enSelladora && !listo) est = '🏭 En selladora';
+              const cls = badgeLinea[est] || (est === 'Listo' || est === 'En preparación' || est === '🏭 En selladora' ? 'badge-preparacion' : 'badge-neutral');
               return `<span class="badge ${cls}">${est}</span>`;
             })()}</td>
           </tr>`;
@@ -440,9 +443,11 @@ function renderDespachoTabla(detalle) {
 
     // Lo guardado como avance (listo, aún sin despachar) aparece ya cargado
     const preparada = Math.min(Number(linea.cantidadPreparada) || 0, pendiente);
+    const enSell = !!linea.enSelladora;
     return `
-      <div class="dsp-card" data-id="${escHtml(linea.idArticulo)}" data-descripcion="${escHtml(linea.descripcion)}" data-pendiente="${pendiente}" data-preparada="${preparada}">
+      <div class="dsp-card${enSell ? ' en-selladora' : ''}" data-id="${escHtml(linea.idArticulo)}" data-descripcion="${escHtml(linea.descripcion)}" data-pendiente="${pendiente}" data-preparada="${preparada}" data-selladora="${enSell ? '1' : ''}">
         ${titulo}
+        <div class="dsp-sell-aviso">🏭 Se está haciendo en la selladora</div>
         <div class="dsp-nums">
           <div><span>Pedido</span><b>${fmtCant(pedido)}</b></div>
           <div><span>Ya salió</span><b>${despachado ? fmtCant(despachado) : '—'}</b></div>
@@ -454,6 +459,7 @@ function renderDespachoTabla(detalle) {
             <input type="number" class="disp-cantidad" value="${preparada || ''}" placeholder="0" min="0" max="${pendiente}" inputmode="numeric" />
             <button type="button" class="ord-btn disp-completo">✓ Todo (${fmtCant(pendiente)})</button>
           </div>
+          <button type="button" class="ord-btn dsp-btn-sell${enSell ? ' activo' : ''}">${enSell ? '🏭 En selladora · tocar para quitar' : '🏭 En selladora'}</button>
           ${preparada ? `<div class="dsp-nota">Avance guardado: ${fmtCant(preparada)}</div>` : ''}
         </div>
       </div>`;
@@ -468,8 +474,40 @@ function renderDespachoTabla(detalle) {
       input.value = (parseInt(input.value, 10) || 0) === Number(fila.dataset.pendiente) ? '' : fila.dataset.pendiente;
       actualizarFaltaFila(fila);
     });
+    fila.querySelector('.dsp-btn-sell').addEventListener('click', () => marcarEnSelladora(fila));
   });
   actualizarTotalDespacho();
+}
+
+// "En selladora": el material aún se está sellando en la máquina. Se guarda al instante
+// (sin tocar la cantidad lista) para que se vea en la orden y en cobranzas.
+function marcarEnSelladora(fila) {
+  const numero = document.getElementById('dispatch-panel').dataset.numero;
+  const nuevo = !fila.dataset.selladora;
+  const btn = fila.querySelector('.dsp-btn-sell');
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+  fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'guardar_avance', numero, usuario: 'almacenero',
+      lineas: [{ idArticulo: fila.dataset.id, cantidadPreparada: Number(fila.dataset.preparada) || 0, enSelladora: nuevo }]
+    })
+  })
+    .then((r) => r.json())
+    .then((res) => {
+      if (!res.ok) { alert('Error: ' + (res.error || 'no se pudo guardar')); return; }
+      fila.dataset.selladora = nuevo ? '1' : '';
+      fila.classList.toggle('en-selladora', nuevo);
+      fetchOrdenes(); // el estado de la orden puede pasar a "En preparación"
+    })
+    .catch((err) => alert('Error de conexión: ' + err.message))
+    .finally(() => {
+      btn.disabled = false;
+      const on = !!fila.dataset.selladora;
+      btn.classList.toggle('activo', on);
+      btn.textContent = on ? '🏭 En selladora · tocar para quitar' : '🏭 En selladora';
+    });
 }
 
 function filasDespacho() {
@@ -770,7 +808,142 @@ function mostrarGuia(numero, guia, idDespacho, estado, fechaDespacho) {
         <div><strong>Recibido por (Cliente)</strong><span></span></div>
       </div>
     </div>`;
+  // Para armar el PDF (compartir / descargar) con los mismos datos
+  guiaActual = { numero, guia, idDespacho, estado, fecha, d, total, conUbic };
   document.getElementById('guia-panel').classList.add('show');
+}
+
+// ---------- Guía en PDF: compartir (WhatsApp, correo…) o descargar ----------
+let guiaActual = null;
+let logoGuiaDataUrl = null;
+
+// El logo original pesa mucho: se achica a 500 px de ancho (JPEG sobre fondo blanco)
+// para que el PDF quede liviano y se pueda mandar por WhatsApp.
+function cargarLogoGuia(src) {
+  if (!src) return Promise.resolve(null);
+  if (logoGuiaDataUrl) return Promise.resolve(logoGuiaDataUrl);
+  return new Promise((res) => {
+    const img = new Image();
+    img.onload = () => {
+      const ancho = Math.min(500, img.naturalWidth || 500);
+      const alto = Math.round(ancho * (img.naturalHeight / img.naturalWidth));
+      const c = document.createElement('canvas');
+      c.width = ancho; c.height = alto;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, ancho, alto);
+      ctx.drawImage(img, 0, 0, ancho, alto);
+      logoGuiaDataUrl = { url: c.toDataURL('image/jpeg', 0.88), proporcion: alto / ancho };
+      res(logoGuiaDataUrl);
+    };
+    img.onerror = () => res(null);
+    img.src = src;
+  });
+}
+
+async function generarPdfGuia() {
+  const g = guiaActual;
+  if (!g) throw new Error('No hay guía abierta');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  const azul = [10, 61, 122];
+  const fmt = (n) => (Number(n) || 0).toLocaleString('es-PE');
+
+  // Encabezado: logo + título + datos del despacho
+  const logo = await cargarLogoGuia(g.d.empresa && g.d.empresa.logo);
+  if (logo) {
+    // Máximo 45 mm de ancho y 20 mm de alto, sin deformar el logo
+    const anchoLogo = Math.min(45, 20 / logo.proporcion);
+    try { doc.addImage(logo.url, 'JPEG', 14, 8, anchoLogo, anchoLogo * logo.proporcion); } catch (e) { /* sin logo */ }
+  }
+  else { doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text(g.d.empresa ? g.d.empresa.nombre : 'SGA-Almacén', 14, 20); }
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(...azul);
+  doc.text('GUÍA DE SALIDA', W - 14, 17, { align: 'right' });
+  doc.setFontSize(10); doc.setTextColor(60);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`N.º de despacho: ${g.idDespacho || '—'}`, W - 14, 23, { align: 'right' });
+  doc.text(`Orden: ${g.numero}${g.d.referencia !== '—' ? ' · ' + g.d.referencia : ''}   ·   ${g.fecha}`, W - 14, 28, { align: 'right' });
+  doc.setDrawColor(...azul); doc.setLineWidth(0.6); doc.line(14, 32, W - 14, 32);
+
+  // Datos del cliente
+  doc.autoTable({
+    startY: 36, theme: 'grid', styles: { fontSize: 9.5, cellPadding: 2 },
+    columnStyles: { 0: { fontStyle: 'bold', fillColor: [240, 243, 248], cellWidth: 34 }, 2: { fontStyle: 'bold', fillColor: [240, 243, 248], cellWidth: 30 } },
+    body: [
+      ['Cliente', g.d.cliente || '—', 'Sede / entrega', g.d.sede || '—'],
+      ['Orden de compra', g.d.oc || '—', 'Empresa', g.d.empresa ? `${g.d.empresa.nombre} · RUC ${g.d.empresa.ruc}` : '—']
+    ].concat(g.estado ? [['Estado de la orden', { content: g.estado, colSpan: 3 }]] : [])
+  });
+
+  // Productos
+  // (la fuente del PDF no tiene el símbolo ✓: se usa "OK" para la casilla de revisión)
+  const head = ['Ítem', 'Código', 'Producto', 'Cantidad'].concat(g.conUbic ? ['Ubicación'] : []).concat(['OK']);
+  const body = g.guia.map((x, i) => [i + 1, x.id, x.descripcion, fmt(x.cantidad)].concat(g.conUbic ? [x.ubicacion || ''] : []).concat(['']));
+  doc.autoTable({
+    startY: doc.lastAutoTable.finalY + 5, head: [head], body,
+    foot: [[{ content: 'Total', colSpan: 3, styles: { halign: 'right' } }, fmt(g.total)].concat(g.conUbic ? [''] : []).concat([''])],
+    theme: 'grid', styles: { fontSize: 9.5, cellPadding: 2.2 },
+    headStyles: { fillColor: azul, textColor: 255 }, footStyles: { fillColor: [235, 235, 235], textColor: 20, fontStyle: 'bold' },
+    columnStyles: { 0: { halign: 'center', cellWidth: 12 }, 1: { cellWidth: 20 }, 3: { halign: 'right', cellWidth: 26 } }
+  });
+
+  // Observaciones y firmas
+  let y = doc.lastAutoTable.finalY + 8;
+  if (g.d.notas && g.d.notas.length) {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.text('Observaciones', 14, y);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+    const lineas = doc.splitTextToSize(g.d.notas.join(' · '), W - 28);
+    doc.text(lineas, 14, y + 5); y += 8 + lineas.length * 4.5;
+  }
+  y = Math.max(y + 18, 240);
+  const anchoFirma = (W - 28 - 20) / 3;
+  ['Despachado por (Almacén)', 'Transportista / placa', 'Recibido por (Cliente)'].forEach((t, i) => {
+    const x = 14 + i * (anchoFirma + 10);
+    doc.setDrawColor(120); doc.setLineWidth(0.3); doc.line(x, y, x + anchoFirma, y);
+    doc.setFontSize(9); doc.setTextColor(60); doc.text(t, x + anchoFirma / 2, y + 5, { align: 'center' });
+  });
+
+  const nombre = `Guia_${g.idDespacho || g.numero}_${String(g.d.cliente || '').replace(/[^A-Za-z0-9]+/g, '_').slice(0, 30)}.pdf`;
+  return { blob: doc.output('blob'), nombre };
+}
+
+function descargarBlob(blob, nombre) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+async function compartirGuiaPdf() {
+  const btn = document.getElementById('guia-compartir');
+  const textoBtn = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Preparando PDF…';
+  try {
+    const { blob, nombre } = await generarPdfGuia();
+    const archivo = new File([blob], nombre, { type: 'application/pdf' });
+    // En el celular abre el menú para compartir (WhatsApp, correo, Drive…); si no se puede, lo descarga
+    if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
+      await navigator.share({ files: [archivo], title: 'Guía de salida ' + (guiaActual.idDespacho || ''), text: 'Guía de salida ' + (guiaActual.idDespacho || '') + ' · ' + (guiaActual.d.cliente || '') });
+    } else {
+      descargarBlob(blob, nombre);
+      alert('Este dispositivo no permite compartir directo: el PDF se descargó y puedes enviarlo desde tus archivos.');
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return; // el usuario cerró el menú de compartir
+    alert('No se pudo generar el PDF: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = textoBtn;
+  }
+}
+
+async function descargarGuiaPdf() {
+  try {
+    const { blob, nombre } = await generarPdfGuia();
+    descargarBlob(blob, nombre);
+  } catch (e) {
+    alert('No se pudo generar el PDF: ' + e.message);
+  }
 }
 // ---------- Subir OC desde Excel y verificar stock ----------
 function manejarArchivoOC(e) {

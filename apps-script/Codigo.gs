@@ -428,6 +428,8 @@ function getOrdenDetalle(numero) {
         cantidadDespachada: despachada,
         cantidadPreparada: Number(d.CANTIDAD_PREPARADA) || 0,
         fechaAvance: d.FECHA_AVANCE instanceof Date ? d.FECHA_AVANCE.toISOString() : (d.FECHA_AVANCE || ''),
+        // El material todavía se está sellando en la máquina (no hay cantidad lista aún)
+        enSelladora: String(d.EN_SELLADORA || '').toUpperCase() === 'SI',
         cantidadPendiente: Math.max(solicitada - despachada, 0),
         idUbicacion: d.ID_UBICACION || '',
         estadoLinea: d.ESTADO_LINEA || 'Pendiente'
@@ -509,7 +511,8 @@ function getDespachos(numero) {
 // columnas CANTIDAD_PREPARADA y FECHA_AVANCE (se crean solas). Es una cantidad absoluta:
 // "hoy hay 3,000 listos", no se suma a lo anterior.
 function guardarAvanceOrden(data) {
-  // data esperado: { numero, lineas: [{idArticulo, cantidadPreparada}], usuario }
+  // data esperado: { numero, lineas: [{idArticulo, cantidadPreparada, enSelladora}], usuario }
+  // enSelladora (opcional, true/false): el producto se está haciendo en la máquina
   const numero = String(data.numero || '');
   if (!numero) return { ok: false, error: 'Falta el número de orden' };
 
@@ -519,6 +522,7 @@ function guardarAvanceOrden(data) {
     const detalleSheet = getSheet(SHEET_ORDENES_DETALLE);
     const colPrep = asegurarColumna(detalleSheet, 'CANTIDAD_PREPARADA');
     const colFechaAv = asegurarColumna(detalleSheet, 'FECHA_AVANCE');
+    const colSell = asegurarColumna(detalleSheet, 'EN_SELLADORA');
     const values = detalleSheet.getDataRange().getValues();
     const headers = values[0].map(String);
     const colNumero = headers.indexOf('NUMERO_ORDEN');
@@ -541,8 +545,10 @@ function guardarAvanceOrden(data) {
       const cantidad = Math.max(Number(l.cantidadPreparada) || 0, 0);
       const pendiente = Math.max((Number(values[fila][colCantSol]) || 0) - (Number(values[fila][colCantDesp]) || 0), 0);
       if (cantidad > pendiente) { errores.push(idArt + ': solo quedan ' + pendiente + ' por despachar'); return; }
-      if (cantidad === (Number(values[fila][colPrep - 1]) || 0)) return; // sin cambios
-      cambios.push({ fila: fila, cantidad: cantidad });
+      const sellActual = String(values[fila][colSell - 1] || '').toUpperCase() === 'SI';
+      const sellNuevo = typeof l.enSelladora === 'boolean' ? l.enSelladora : sellActual;
+      if (cantidad === (Number(values[fila][colPrep - 1]) || 0) && sellNuevo === sellActual) return; // sin cambios
+      cambios.push({ fila: fila, cantidad: cantidad, enSelladora: sellNuevo });
     });
     if (errores.length) return { ok: false, error: errores.join('\n') };
 
@@ -550,14 +556,18 @@ function guardarAvanceOrden(data) {
     cambios.forEach(function (c) {
       detalleSheet.getRange(c.fila + 1, colPrep).setValue(c.cantidad);
       detalleSheet.getRange(c.fila + 1, colFechaAv).setValue(ahora);
+      detalleSheet.getRange(c.fila + 1, colSell).setValue(c.enSelladora ? 'SI' : '');
       values[c.fila][colPrep - 1] = c.cantidad;
+      values[c.fila][colSell - 1] = c.enSelladora ? 'SI' : '';
     });
 
-    // Si la orden aún no tuvo despachos, su estado refleja si ya hay algo listo
+    // Si la orden aún no tuvo despachos, su estado refleja si ya hay algo listo o en la máquina
     const huboDespachos = filasOrden.some(function (i) { return (Number(values[i][colCantDesp]) || 0) > 0; });
     let estado = null;
     if (!huboDespachos) {
-      estado = filasOrden.some(function (i) { return (Number(values[i][colPrep - 1]) || 0) > 0; }) ? 'En preparación' : 'Pendiente';
+      estado = filasOrden.some(function (i) {
+        return (Number(values[i][colPrep - 1]) || 0) > 0 || String(values[i][colSell - 1] || '').toUpperCase() === 'SI';
+      }) ? 'En preparación' : 'Pendiente';
       const ordenSheet = getSheet(SHEET_ORDENES);
       const ov = ordenSheet.getDataRange().getValues();
       const oh = ov[0].map(String);
@@ -667,6 +677,9 @@ function despacharOrden(data) {
       detalleSheet.getRange(a.fila + 1, colCantDesp + 1).setValue(despachada);
       detalleSheet.getRange(a.fila + 1, colUbic + 1).setValue(ubicPrevias.join(', '));
       detalleSheet.getRange(a.fila + 1, colEstadoLinea + 1).setValue(despachada >= solicitada ? 'Despachado' : 'Parcial');
+      // Si ya salió todo, deja de estar "en selladora"
+      const colSell = headers.indexOf('EN_SELLADORA');
+      if (colSell >= 0 && despachada >= solicitada) detalleSheet.getRange(a.fila + 1, colSell + 1).setValue('');
       // Lo que estaba listo y ya salió deja de contarse como "listo"
       if (colPrep >= 0) {
         const preparada = Math.max((Number(values[a.fila][colPrep]) || 0) - a.cantidad, 0);
