@@ -23,7 +23,11 @@ window.initOrdenesModule = function () {
   document.getElementById('dispatch-panel-close').addEventListener('click', () => {
   document.getElementById('dispatch-panel').classList.remove('show');
   });
-  document.getElementById('dispatch-confirm').addEventListener('click', confirmarDespacho);
+  document.getElementById('dispatch-confirm').addEventListener('click', abrirEleccionSalida);
+  document.getElementById('salida-close').addEventListener('click', cerrarEleccionSalida);
+  document.getElementById('salida-volver').addEventListener('click', cerrarEleccionSalida);
+  document.getElementById('salida-todos').addEventListener('click', alternarTodosSalida);
+  document.getElementById('salida-confirmar').addEventListener('click', confirmarDespacho);
   document.getElementById('dispatch-todo').addEventListener('click', despacharTodoLoQueHay);
   document.getElementById('dispatch-avance').addEventListener('click', guardarAvance);
 
@@ -190,7 +194,7 @@ function handleOrdenesClick(e) {
 
 // ---------- Ventanas flotantes (ver orden, preparar/despachar, guía) ----------
 // Mientras una está abierta, la lista de atrás no se mueve; se cierra con ✕, tocando fuera o con Esc.
-const MODALES_ORDENES = ['order-view-panel', 'dispatch-panel', 'guia-panel'];
+const MODALES_ORDENES = ['order-view-panel', 'dispatch-panel', 'salida-panel', 'guia-panel'];
 
 function modalesAbiertos() {
   return MODALES_ORDENES.map((id) => document.getElementById(id)).filter((p) => p && p.classList.contains('show'));
@@ -623,36 +627,118 @@ function guardarAvance() {
     });
 }
 
+// ---------- Paso final: elegir qué sube al camión ----------
+// "Despachar" ya no manda todo lo listo: abre esta lista para marcar solo lo que se carga.
+// Lo que no se marca se queda guardado como "listo" para el próximo envío.
+function abrirEleccionSalida() {
+  const listos = filasDespacho()
+    .map((fila) => ({ fila, cantidad: parseInt(fila.querySelector('.disp-cantidad').value, 10) || 0 }))
+    .filter((x) => x.cantidad > 0);
+  if (!listos.length) { alert('No hay nada listo. Escribe cuánto está listo de cada producto o toca "✓ Todo".'); return; }
+
+  document.getElementById('salida-numero').textContent = document.getElementById('dispatch-panel').dataset.numero;
+  document.getElementById('salida-lista').innerHTML = listos.map(({ fila, cantidad }) => {
+    const pendiente = Number(fila.dataset.pendiente) || 0;
+    const parcial = cantidad < pendiente ? `<span class="sal-parcial">de ${fmtCant(pendiente)} que faltan</span>` : '<span class="sal-ok">completo</span>';
+    return `
+      <label class="sal-item marcado" data-id="${escHtml(fila.dataset.id)}">
+        <input type="checkbox" class="sal-check" checked />
+        <span class="sal-texto">
+          <span class="dsp-head"><span class="dsp-id">${escHtml(fila.dataset.id)}</span><span class="dsp-desc">${escHtml(fila.dataset.descripcion)}</span></span>
+          <span class="sal-cant">Sube: <input type="number" class="sal-num" value="${cantidad}" min="1" max="${pendiente}" inputmode="numeric" /> ${parcial}</span>
+        </span>
+      </label>`;
+  }).join('');
+
+  document.querySelectorAll('#salida-lista .sal-item').forEach((item) => {
+    const check = item.querySelector('.sal-check');
+    const num = item.querySelector('.sal-num');
+    check.addEventListener('change', actualizarSalida);
+    num.addEventListener('input', () => {
+      const max = Number(num.max) || 0;
+      if ((parseInt(num.value, 10) || 0) > max) num.value = max;
+      actualizarSalida();
+    });
+  });
+  actualizarSalida();
+  const panel = document.getElementById('salida-panel');
+  panel.classList.add('show');
+  panel.scrollTop = 0;
+}
+
+function cerrarEleccionSalida() {
+  document.getElementById('salida-panel').classList.remove('show');
+}
+
+function itemsSalida() {
+  return [...document.querySelectorAll('#salida-lista .sal-item')];
+}
+
+function actualizarSalida() {
+  const items = itemsSalida();
+  let marcados = 0, unidades = 0;
+  items.forEach((item) => {
+    const on = item.querySelector('.sal-check').checked;
+    item.classList.toggle('marcado', on);
+    if (on) { marcados++; unidades += parseInt(item.querySelector('.sal-num').value, 10) || 0; }
+  });
+  document.getElementById('salida-total').textContent = marcados
+    ? `Suben ${marcados} de ${items.length} productos · ${fmtCant(unidades)} unidades`
+    : 'Marca lo que sube al camión';
+  const btn = document.getElementById('salida-confirmar');
+  btn.disabled = marcados === 0;
+  btn.textContent = marcados ? `🚚 Despachar ${marcados} producto${marcados === 1 ? '' : 's'}` : '🚚 Despachar';
+  document.getElementById('salida-todos').textContent = marcados === items.length ? 'Quitar todos' : 'Marcar todos';
+}
+
+function alternarTodosSalida() {
+  const items = itemsSalida();
+  const todos = items.every((i) => i.querySelector('.sal-check').checked);
+  items.forEach((i) => { i.querySelector('.sal-check').checked = !todos; });
+  actualizarSalida();
+}
+
 function confirmarDespacho() {
   const numero = document.getElementById('dispatch-panel').dataset.numero;
   const lineas = [];
+  const seQuedan = []; // listos que no suben: se guardan como avance
 
-  filasDespacho().forEach((fila) => {
-    const cantidad = parseInt(fila.querySelector('.disp-cantidad').value, 10) || 0;
-    if (cantidad <= 0) return;
-    lineas.push({
-      idArticulo: fila.dataset.id,
-      descripcion: fila.dataset.descripcion,
-      idUbicacion: '',
-      cantidadDespachar: cantidad
-    });
+  itemsSalida().forEach((item) => {
+    const fila = filasDespacho().find((f) => f.dataset.id === item.dataset.id);
+    if (!fila) return;
+    const listo = parseInt(fila.querySelector('.disp-cantidad').value, 10) || 0;
+    const sube = item.querySelector('.sal-check').checked ? (parseInt(item.querySelector('.sal-num').value, 10) || 0) : 0;
+    if (sube > 0) {
+      lineas.push({ idArticulo: fila.dataset.id, descripcion: fila.dataset.descripcion, idUbicacion: '', cantidadDespachar: sube });
+    }
+    // Lo listo que no sube (todo o una parte) queda anotado para el próximo camión
+    const resto = Math.max(listo - sube, 0);
+    if (resto > 0 || Number(fila.dataset.preparada) > 0) {
+      seQuedan.push({ idArticulo: fila.dataset.id, cantidadPreparada: resto + sube });
+    }
   });
 
-  if (!lineas.length) { alert('No hay cantidades a despachar. Escribe cuánto sale o toca "✓ Todo".'); return; }
-  const resumen = lineas.map((l) => `${l.descripcion}: ${fmtCant(l.cantidadDespachar)}`).join('\n');
-  if (!confirm('¿Confirmas que sale esto en el camión?\n\n' + resumen)) return;
+  if (!lineas.length) { alert('Marca al menos un producto que suba al camión.'); return; }
 
-  const confirmBtn = document.getElementById('dispatch-confirm');
+  const confirmBtn = document.getElementById('salida-confirmar');
   confirmBtn.textContent = 'Procesando…';
   confirmBtn.disabled = true;
 
-  fetch(API_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action: 'despachar_orden', numero, lineas, usuario: 'almacenero', descontarStock: DESCONTAR_STOCK_EN_DESPACHO })
-  })
+  // 1) Guardar como "listo" lo que se escribió (incluye lo que sube: el despacho luego lo descuenta)
+  const guardarListos = seQuedan.length
+    ? fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'guardar_avance', numero, lineas: seQuedan, usuario: 'almacenero' }) })
+        .then((r) => r.json()).catch(() => ({ ok: false }))
+    : Promise.resolve({ ok: true });
+
+  guardarListos
+    .then(() => fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'despachar_orden', numero, lineas, usuario: 'almacenero', descontarStock: DESCONTAR_STOCK_EN_DESPACHO })
+    }))
     .then((r) => r.json())
     .then((resultado) => {
       if (resultado.ok) {
+        document.getElementById('salida-panel').classList.remove('show');
         document.getElementById('dispatch-panel').classList.remove('show');
         mostrarGuia(numero, resultado.guia, resultado.idDespacho, resultado.estado);
         fetchOrdenes();
@@ -665,8 +751,7 @@ function confirmarDespacho() {
     })
     .catch((err) => alert('Error de conexión: ' + err.message))
     .finally(() => {
-      confirmBtn.textContent = '🚚 Despachar';
-      confirmBtn.disabled = false;
+      actualizarSalida(); // vuelve a poner el texto y el estado del botón
     });
 }
 

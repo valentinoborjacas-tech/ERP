@@ -19,7 +19,7 @@
     <button type="button" class="quick-panel-close" id="dispatch-panel-close" aria-label="Cerrar">✕</button>
   </div>
   <div class="modal-resumen" id="dispatch-info"></div>
-  <div class="dsp-ayuda">Escribe cuánto está listo de cada producto (o toca <b>✓ Todo</b>). <b>Guardar avance</b> lo deja anotado sin despachar; <b>Despachar</b> genera la guía.</div>
+  <div class="dsp-ayuda">Escribe cuánto está listo de cada producto (o toca <b>✓ Todo</b>). <b>Guardar avance</b> lo deja anotado sin despachar; <b>Despachar</b> te deja elegir qué sube al camión y genera la guía.</div>
   <div class="dsp-barra">
     <span class="modal-seccion" style="margin:0;">Productos</span>
     <button type="button" class="ord-btn dsp-marcar-todo" id="dispatch-todo">✓ Marcar todo completo</button>
@@ -30,6 +30,27 @@
     <div class="dsp-pie-btns">
       <button type="button" class="ord-btn" id="dispatch-avance">💾 Guardar avance</button>
       <button type="button" class="ord-btn primario" id="dispatch-confirm">🚚 Despachar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Paso final del despacho: elegir qué productos suben al camión -->
+<div class="quick-panel" id="salida-panel">
+  <div class="quick-panel-header">
+    <span class="quick-panel-title">¿Qué sube al camión? — <span id="salida-numero">—</span></span>
+    <button type="button" class="quick-panel-close" id="salida-close" aria-label="Volver">✕</button>
+  </div>
+  <div class="dsp-ayuda">Marca solo lo que se carga ahora. Lo que no marques <b>se queda como listo</b> para el próximo envío.</div>
+  <div class="dsp-barra">
+    <span class="modal-seccion" style="margin:0;">Productos listos</span>
+    <button type="button" class="ord-btn" id="salida-todos">Marcar todos</button>
+  </div>
+  <div class="sal-lista" id="salida-lista"></div>
+  <div class="modal-pie dsp-pie">
+    <div class="dsp-total" id="salida-total"></div>
+    <div class="dsp-pie-btns">
+      <button type="button" class="ord-btn" id="salida-volver">‹ Volver</button>
+      <button type="button" class="ord-btn primario" id="salida-confirmar">🚚 Despachar</button>
     </div>
   </div>
 </div>

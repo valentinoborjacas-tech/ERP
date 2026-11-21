@@ -913,6 +913,27 @@ html.modal-abierto, body.modal-abierto{ overflow:hidden; }
 .dsp-card.en-selladora{ border-left-color:#e0a100; }
 .dsp-card.en-selladora .dsp-sell-aviso{ display:block; }
 
+/* Paso "¿Qué sube al camión?" */
+#salida-panel.ord-modal.show{ z-index:1002; width:min(620px, 94vw); }
+.sal-lista{ display:flex; flex-direction:column; gap:10px; }
+.sal-item{
+  display:flex; align-items:flex-start; gap:12px; cursor:pointer;
+  background:#fff; border:1px solid #e1e5ea; border-left:5px solid #c9d1db; border-radius:12px; padding:12px 14px;
+  opacity:.6; transition:opacity .15s, border-color .15s;
+}
+.sal-item.marcado{ opacity:1; border-left-color:#2e8b57; box-shadow:0 0 0 1px #cfe9d9 inset; }
+.sal-check{ flex-shrink:0; width:26px; height:26px; margin:2px 0 0; accent-color:#2e8b57; cursor:pointer; }
+.sal-texto{ display:flex; flex-direction:column; gap:8px; min-width:0; flex:1; }
+.sal-cant{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:14px; color:#4a5563; font-weight:600; }
+.sal-num{
+  width:110px; min-height:42px; font-size:17px; font-weight:700; text-align:center;
+  border:1.5px solid #c9d1db; border-radius:10px; background:#fff; color:#1d2733;
+}
+.sal-num:focus{ outline:none; border-color:#0a3d7a; box-shadow:0 0 0 3px rgba(10,61,122,.12); }
+.sal-ok{ font-size:12px; color:#21704a; background:#e2f3e8; border-radius:20px; padding:2px 8px; }
+.sal-parcial{ font-size:12px; color:#b45309; background:#fff3e0; border-radius:20px; padding:2px 8px; }
+#salida-confirmar:disabled{ opacity:.5; cursor:not-allowed; }
+
 .dsp-pie{ display:flex; flex-direction:column; gap:8px; }
 .dsp-total{ font-size:13px; color:#4a5563; text-align:center; }
 .dsp-pie-btns{ display:flex; gap:10px; }
