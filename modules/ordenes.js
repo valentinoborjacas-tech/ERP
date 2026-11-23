@@ -6,6 +6,10 @@ let ocLineas = [];
 let stockMapOc = {};
 
 window.initOrdenesModule = function () {
+  // Siempre se entra a "Activas" (la pestaña de la pantalla se dibuja así)
+  vistaOrdenes = 'activas';
+  // Si ya se habían cargado antes, se muestran al instante y luego se actualizan
+  if (ordenesData.length) renderOrdenesSeguro();
   fetchOrdenes();
 
   document.getElementById('ord-search-input').addEventListener('input', renderOrdenesFiltered);
@@ -82,18 +86,37 @@ function activarRefrescoOrdenes() {
 }
 
 function fetchOrdenes() {
-  fetch(`${API_URL}?action=ordenes&_=${Date.now()}`, { cache: 'no-store' })
+  // Si el servidor tarda demasiado (señal débil), se corta y se avisa en vez de quedar "Cargando…"
+  const control = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const corte = control ? setTimeout(() => control.abort(), 25000) : null;
+  return fetch(`${API_URL}?action=ordenes&_=${Date.now()}`, { cache: 'no-store', signal: control ? control.signal : undefined })
     .then((r) => r.json())
     .then((data) => {
       if (!Array.isArray(data)) throw new Error('respuesta inesperada del servidor');
       ordenesData = data;
-      if (document.getElementById('ordenes-lista')) renderOrdenesFiltered();
+      if (document.getElementById('ordenes-lista')) renderOrdenesSeguro();
     })
     .catch((err) => {
       const lista = document.getElementById('ordenes-lista');
-      if (!lista || ordenesData.length) return; // si ya hay órdenes en pantalla, se dejan
-      lista.innerHTML = `<div class="ord-vacio">No se pudieron cargar las órdenes: ${escHtml(err.message)}</div>`;
-    });
+      if (!lista) return;
+      // Si ya se tenían órdenes, se muestran las últimas conocidas (nunca se queda en "Cargando…")
+      if (ordenesData.length) { renderOrdenesSeguro(); return; }
+      const motivo = err && err.name === 'AbortError' ? 'el servidor tardó demasiado en responder' : (navigator.onLine ? err.message : 'no hay conexión a internet');
+      lista.innerHTML = `<div class="ord-vacio">No se pudieron cargar las órdenes (${escHtml(motivo)}).<br><button type="button" class="ord-btn" id="ord-reintentar" style="margin-top:10px;">↻ Reintentar</button></div>`;
+      const btn = document.getElementById('ord-reintentar');
+      if (btn) btn.addEventListener('click', () => { lista.innerHTML = '<div class="ord-vacio">Cargando órdenes…</div>'; fetchOrdenes(); });
+    })
+    .finally(() => { if (corte) clearTimeout(corte); });
+}
+
+// Dibuja la lista; si algo de una orden viene raro, lo avisa en pantalla en vez de dejarla en blanco
+function renderOrdenesSeguro() {
+  try {
+    renderOrdenesFiltered();
+  } catch (err) {
+    const lista = document.getElementById('ordenes-lista');
+    if (lista) lista.innerHTML = `<div class="ord-vacio">No se pudo mostrar la lista: ${escHtml(err.message)}</div>`;
+  }
 }
 
 function escHtml(s) {
