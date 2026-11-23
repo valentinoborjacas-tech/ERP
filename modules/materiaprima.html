@@ -1,14 +1,32 @@
-<div class="module-title">Materia Prima</div>
-<div class="module-subtitle">Stock de bovinas por material — ingresos, consumos y saldo actual.</div>
+<div class="mod-cabecera">
+  <div>
+    <div class="module-title">Materia prima</div>
+    <div class="module-subtitle">Stock de bovinas por material: ingresos, consumos y saldo actual.</div>
+  </div>
+  <div class="mod-acciones">
+    <button type="button" id="btn-importar-mangas" class="btn-classic"><i class="ti ti-file-upload"></i> Importar mangas</button>
+    <button class="btn-classic btn-ingreso" id="btn-ingresar-bovinas"><i class="ti ti-plus"></i> Ingresar bovinas</button>
+  </div>
+</div>
+
+<!-- Resumen -->
+<div class="kpis" id="mp-kpis">
+  <div class="kpi"><div class="kpi-label"><i class="ti ti-weight"></i>Stock total</div><div class="kpi-valor" id="mp-kpi-stock">—</div></div>
+  <div class="kpi"><div class="kpi-label"><i class="ti ti-cylinder"></i>Bovinas en stock</div><div class="kpi-valor" id="mp-kpi-bovinas">—</div></div>
+  <div class="kpi ambar"><div class="kpi-label"><i class="ti ti-map-pin-off"></i>Sin zona</div><div class="kpi-valor" id="mp-kpi-sinzona">—</div></div>
+  <div class="kpi"><div class="kpi-label"><i class="ti ti-flame"></i>Kg consumidos</div><div class="kpi-valor" id="mp-kpi-consumido">—</div></div>
+</div>
 
 <div class="search-bar">
   <div class="search-input-wrap">
-    <span>🔍</span>
-    <input type="text" id="mp-search-input" placeholder="Buscar por ID o descripción..." />
+    <i class="ti ti-search" style="color:var(--texto-3);font-size:17px;"></i>
+    <input type="search" id="mp-search-input" placeholder="Buscar por ID o descripción…" autocomplete="off" />
   </div>
-  <button class="btn-classic btn-ingreso" id="btn-ingresar-bovinas">⬇️ Ingresar Bovinas</button>
-  <button type="button" id="btn-importar-mangas" class="btn-classic" style="height:100%;">📥 Importar mangas</button>
-
+</div>
+<div class="chips" id="mp-filtros" role="group" aria-label="Filtrar materiales">
+  <button type="button" class="chip on" data-filtro="stock">Con stock<b id="mp-n-stock"></b></button>
+  <button type="button" class="chip" data-filtro="sinzona">Sin zona<b id="mp-n-sinzona"></b></button>
+  <button type="button" class="chip" data-filtro="todos">Todos<b id="mp-n-todos"></b></button>
 </div>
 
 <!-- Panel: ingresar bovinas -->
@@ -96,6 +114,35 @@
   </div>
 </div>
 <style>
+  .mod-cabecera{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .mod-acciones{ display:flex; gap:8px; flex-wrap:wrap; }
+  .mod-acciones .btn-classic{ min-height:40px; }
+  .mp-tabla th.num, .mp-tabla td.num{ text-align:right; }
+  .mp-tabla .mp-id{ font-family:ui-monospace, 'SFMono-Regular', Consolas, monospace; font-size:13px; color:var(--texto-2); white-space:nowrap; }
+  .mp-tabla .mp-desc{ font-weight:500; }
+  .mp-tabla .mp-stock{ font-weight:700; white-space:nowrap; }
+  .mp-tabla tr.fila-cero td, .mp-tabla tr.fila-cero .mp-stock{ color:var(--texto-3); font-weight:400; }
+  .mp-vacio{ text-align:center; color:var(--texto-2); padding:28px 12px !important; }
+  /* Tablet vertical: sin las columnas de kg ingresados/consumidos (están en el detalle) */
+  @media (min-width: 768px) and (max-width: 1023px){
+    .mp-tabla th:nth-child(4), .mp-tabla th:nth-child(5),
+    .mp-tabla td:nth-child(4), .mp-tabla td:nth-child(5){ display:none; }
+  }
+  @media (max-width: 767px){
+    .mod-acciones{ width:100%; }
+    .mod-acciones .btn-classic{ flex:1; min-height:46px; }
+    .mod-acciones #btn-ingresar-bovinas{ order:-1; flex-basis:100%; }
+    /* Tarjeta: material + stock arriba, cifras en una fila */
+    .mp-tabla table.data-grid tr{ display:grid !important; grid-template-columns:1fr auto; gap:2px 10px; }
+    .mp-tabla table.data-grid td{ display:block !important; padding:0 !important; }
+    .mp-tabla table.data-grid td::before{ display:none; }
+    .mp-tabla td.mp-desc{ grid-column:1; grid-row:1; font-size:15px; }
+    .mp-tabla td.mp-stock{ grid-column:2; grid-row:1; font-size:15px; text-align:right; }
+    .mp-tabla td.mp-id{ grid-column:1 / -1; grid-row:2; border:none !important; margin:0 !important; font-size:12px !important; font-weight:400 !important; }
+    .mp-tabla table.data-grid td[data-label="Bovinas"], .mp-tabla table.data-grid td[data-label="Kg ingresados"], .mp-tabla table.data-grid td[data-label="Kg consumidos"]{ display:none !important; }
+    .mp-tabla table.data-grid td[data-label="Zonas"]{ grid-column:1 / -1; margin-top:6px !important; font-size:13px; color:var(--texto-2); }
+    .mp-tabla .barra-stock{ max-width:none; }
+  }
   .mp-origen{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
   .mp-origen-opcion{ flex:1; min-width:220px; display:flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid var(--border-mid); border-radius:4px; background:#fff; cursor:pointer; font-weight:bold; }
   .mp-origen-opcion:has(input:checked){ border-color:var(--accent); background:#e7f0fb; }
@@ -282,10 +329,10 @@
   </div>
 </div>
 
-<div class="table-scroll">
+<div class="table-scroll mp-tabla">
   <table class="data-grid" id="mp-table">
     <thead>
-      <tr><th>ID de bovina</th><th>Descripción</th><th>N° Bovinas</th><th>Kg ingresados</th><th>Kg consumidos</th><th>Stock actual (kg)</th><th>Zonas</th></tr>
+      <tr><th>ID de bovina</th><th>Material</th><th class="num">Bovinas</th><th class="num">Kg ingresados</th><th class="num">Kg consumidos</th><th class="num">Stock actual</th><th>Zonas</th></tr>
     </thead>
     <tbody id="mp-tbody"><tr><td colspan="7">Cargando…</td></tr></tbody>
   </table>

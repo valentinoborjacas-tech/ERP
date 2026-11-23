@@ -9,8 +9,14 @@ window.initMateriaprimaModule = function () {
   fetchMpStock();
   fetchProduccionLog();
 
-  document.getElementById('mp-search-input').addEventListener('keyup', renderMpFiltered);
- 
+  document.getElementById('mp-search-input').addEventListener('input', renderMpFiltered);
+  // Filtros rápidos: con stock (por defecto), sin zona, todos
+  document.querySelectorAll('#mp-filtros .chip').forEach((c) => c.addEventListener('click', () => {
+    mpFiltro = c.dataset.filtro;
+    document.querySelectorAll('#mp-filtros .chip').forEach((x) => x.classList.toggle('on', x === c));
+    renderMpFiltered();
+  }));
+
   document.getElementById('btn-ingresar-bovinas').addEventListener('click', abrirIngresoPanel);
    const _on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   _on('btn-importar-mangas', 'click', abrirImportarPanel);
@@ -80,23 +86,56 @@ function fetchMpStock() {
     });
 }
 
+let mpFiltro = 'stock';
+const mpKg = (n) => Number(n || 0).toLocaleString('es-PE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const mpEsc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// Resumen de arriba: stock total, bovinas en stock, sin zona y kilos consumidos
+function renderMpResumen() {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.innerHTML = v; };
+  const conStock = mpStockData.filter((m) => Number(m.stockActual) > 0);
+  const sinZona = mpStockData.reduce((s, m) => s + (Number(m.sinZona) || 0), 0);
+  set('mp-kpi-stock', `${Math.round(conStock.reduce((s, m) => s + Number(m.stockActual || 0), 0)).toLocaleString('es-PE')}<small>kg</small>`);
+  set('mp-kpi-bovinas', mpStockData.reduce((s, m) => s + (Number(m.nBovinas) || 0), 0).toLocaleString('es-PE'));
+  set('mp-kpi-sinzona', sinZona ? `${sinZona}<small>bovinas</small>` : '0');
+  set('mp-kpi-consumido', `${Math.round(mpStockData.reduce((s, m) => s + Number(m.kgConsumidos || 0), 0)).toLocaleString('es-PE')}<small>kg</small>`);
+  set('mp-n-stock', conStock.length);
+  set('mp-n-sinzona', mpStockData.filter((m) => Number(m.sinZona) > 0).length);
+  set('mp-n-todos', mpStockData.length);
+}
+
 function renderMpFiltered() {
+  renderMpResumen();
   const term = (document.getElementById('mp-search-input').value || '').toLowerCase();
-  const filtrados = mpStockData.filter((m) =>
-    m.id.toLowerCase().includes(term) || m.descripcion.toLowerCase().includes(term)
-  );
+  const filtrados = mpStockData.filter((m) => {
+    if (term && !(m.id.toLowerCase().includes(term) || m.descripcion.toLowerCase().includes(term))) return false;
+    // Al buscar algo concreto se muestra aunque no tenga stock
+    if (term) return true;
+    if (mpFiltro === 'stock') return Number(m.stockActual) > 0;
+    if (mpFiltro === 'sinzona') return Number(m.sinZona) > 0;
+    return true;
+  });
+  // Primero lo que tiene más stock
+  filtrados.sort((a, b) => Number(b.stockActual || 0) - Number(a.stockActual || 0));
+  const maxStock = Math.max(1, ...filtrados.map((m) => Number(m.stockActual || 0)));
+
   document.getElementById('mp-tbody').innerHTML = filtrados.length
-    ? filtrados.map((m) => `
-        <tr class="selectable" data-id="${m.id}">
-          <td data-label="ID">${m.id}</td>
-          <td data-label="Descripción">${m.descripcion}</td>
-          <td data-label="N° Bovinas">${m.nBovinas}</td>
-          <td data-label="Kg ingresados">${m.kgIngresados.toFixed(1)}</td>
-          <td data-label="Kg consumidos">${m.kgConsumidos.toFixed(1)}</td>
-                    <td data-label="Stock actual (kg)" style="font-weight:bold;">${m.stockActual.toFixed(1)}</td>
+    ? filtrados.map((m) => {
+        const stock = Number(m.stockActual || 0);
+        // Qué parte de lo ingresado queda (barra)
+        const pct = Number(m.kgIngresados) > 0 ? Math.min(100, Math.round(stock / Number(m.kgIngresados) * 100)) : 0;
+        return `
+        <tr class="selectable${stock > 0 ? '' : ' fila-cero'}" data-id="${mpEsc(m.id)}">
+          <td data-label="ID" class="mp-id">${mpEsc(m.id)}</td>
+          <td data-label="Material" class="mp-desc">${mpEsc(m.descripcion)}${stock > 0 ? `<div class="barra-stock" title="Queda el ${pct} % de lo ingresado"><i style="width:${Math.max(3, Math.round(stock / maxStock * 100))}%"></i></div>` : ''}</td>
+          <td data-label="Bovinas" class="num">${m.nBovinas}</td>
+          <td data-label="Kg ingresados" class="num">${mpKg(m.kgIngresados)}</td>
+          <td data-label="Kg consumidos" class="num">${mpKg(m.kgConsumidos)}</td>
+          <td data-label="Stock actual" class="num mp-stock">${mpKg(stock)} kg</td>
           <td data-label="Zonas">${mpZonasTxt(m)}</td>
-        </tr>`).join('')
-    : `<tr><td colspan="7">No se encontraron materiales.</td></tr>`;
+        </tr>`;
+      }).join('')
+    : `<tr><td colspan="7" class="mp-vacio">${term ? 'Ningún material coincide con la búsqueda.' : mpFiltro === 'sinzona' ? 'Todas las bovinas tienen zona asignada.' : 'No hay materiales para mostrar.'}</td></tr>`;
 }
 
 function handleMpTablaClick(e) {

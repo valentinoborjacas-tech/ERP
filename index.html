@@ -2,90 +2,96 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0b3a6f">
 <title>SGA-Almacén</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/3.4.1/tailwind.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/theme.css">
 </head>
-<body class="p-3">
+<body class="tema-nuevo">
 
-<div class="max-w-[1180px] mx-auto bevel-out" style="border-radius:4px; overflow:hidden;">
+<div class="app-shell">
 
-  <!-- Cabecera -->
-  <div class="app-header flex items-center justify-between">
-    <div class="flex items-center gap-2">
-      <button class="header-btn hamburger-btn" id="hamburger-btn" title="Menú de módulos">☰</button>
-      <div>
-        <div class="app-name">📦 SGA-Almacén</div>
-        <div class="breadcrumb">Almacén &nbsp;›&nbsp; <b id="crumb-module">stock</b></div>
+  <!-- Barra superior -->
+  <header class="topbar">
+    <button class="tb-icon hamburger-btn" id="hamburger-btn" title="Menú" aria-label="Abrir menú"><i class="ti ti-menu-2"></i></button>
+    <div class="tb-marca">
+      <span class="tb-logo"><i class="ti ti-box"></i></span>
+      <div class="tb-textos">
+        <div class="app-name">SGA-Almacén</div>
+        <div class="breadcrumb"><b id="crumb-module">—</b></div>
       </div>
     </div>
-    <div class="flex items-center gap-2">
-      <button class="header-btn"><span class="btn-text-full">🔍 Buscar Global</span><span class="btn-text-short">🔍</span></button>
-      <button class="header-btn primary"><span class="btn-text-full">💾 Guardar</span><span class="btn-text-short">💾</span></button>
-    </div>
-  </div>
 
-  <!-- Cuerpo: Sidebar + Contenido -->
+    <!-- Buscador global: artículos, órdenes, materia prima y módulos -->
+    <div class="gs" id="gs">
+      <button type="button" class="tb-icon gs-abrir-movil" id="gs-abrir" aria-label="Buscar"><i class="ti ti-search"></i></button>
+      <div class="gs-caja">
+        <i class="ti ti-search gs-lupa"></i>
+        <input type="search" id="gs-input" placeholder="Buscar artículo, orden, bovina o cliente…" autocomplete="off" aria-label="Buscar en todo el sistema" />
+        <span class="gs-kbd">Ctrl K</span>
+        <button type="button" class="gs-cerrar" id="gs-cerrar" aria-label="Cerrar búsqueda"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="gs-resultados" id="gs-resultados" role="listbox"></div>
+    </div>
+
+    <!-- Estado de la conexión con el servidor (reemplaza al antiguo "Guardar": todo se guarda solo) -->
+    <div class="sync" id="sync" title="Todo se guarda automáticamente">
+      <span class="sync-punto"></span><span class="sync-txt" id="sync-txt">Conectando…</span>
+    </div>
+    <button class="tb-icon" id="btn-actualizar" title="Actualizar esta pantalla" aria-label="Actualizar"><i class="ti ti-refresh"></i></button>
+    <button class="perfil-chip" id="perfil-chip" title="Cambiar perfil"><i class="ti ti-user-circle"></i><span id="perfil-chip-txt">Perfil</span><i class="ti ti-chevron-down perfil-flecha"></i></button>
+  </header>
+
   <div class="app-body">
 
-    <!-- Fondo oscuro al abrir el sidebar en móvil -->
+    <!-- Fondo oscuro al abrir el menú en celular/tablet -->
     <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-        <!-- SIDEBAR -->
-    <div class="sidebar" id="sidebar">
-      <div class="sidebar-title">Módulos</div>
-      <div class="nav-item active" data-module="stock" title="stock">
-        <span class="nav-icon">📊</span><span class="nav-label">stock</span>
-      </div>
-      <div class="nav-item" data-module="articulos" title="Artículos / Catálogo">
-        <span class="nav-icon">📋</span><span class="nav-label">Artículos / Catálogo</span>
-      </div>
-      <div class="nav-item" data-module="ubicaciones" title="Ubicaciones">
-        <span class="nav-icon">📍</span><span class="nav-label">Ubicaciones</span>
-      </div>
-      <div class="nav-item" data-module="historial" title="Historial">
-        <span class="nav-icon">🕘</span><span class="nav-label">Historial</span>
-      </div>
-      <div class="nav-item" data-module="tickets" title="Tickets de Fabricación">
-        <span class="nav-icon">🎫</span><span class="nav-label">Tickets</span>
-      </div>
-      <div class="nav-item" data-module="ordenes" title="Órdenes de Despacho">
-        <span class="nav-icon">📦</span><span class="nav-label">Órdenes</span>
-      </div>
-      <div class="nav-item" data-module="materiaprima" title="Materia Prima">
-  <span class="nav-icon">🧵</span><span class="nav-label">Materia Prima</span>
-  </div>
-      <div class="nav-item" data-module="planta" title="En planta">
-  <span class="nav-icon">👷</span><span class="nav-label">En planta</span>
-</div>
-      <div class="nav-item" data-module="operario" title="Producción">
-  <span class="nav-icon">🏭</span><span class="nav-label">Producción</span>
-</div>
-    
-      <div class="nav-item" data-module="miavance" title="Mi Avance Sellador">
-  <span class="nav-icon">📈</span><span class="nav-label">Mi Avance</span>
-</div>
-    </div>
+    <!-- MENÚ LATERAL -->
+    <nav class="sidebar" id="sidebar" aria-label="Módulos">
+      <div class="nav-grupo" data-grupo="inventario">Inventario</div>
+      <div class="nav-item" data-module="stock" title="Stock"><i class="nav-icon ti ti-chart-bar"></i><span class="nav-label">Stock</span></div>
+      <div class="nav-item" data-module="articulos" title="Artículos / Catálogo"><i class="nav-icon ti ti-list-details"></i><span class="nav-label">Artículos</span></div>
+      <div class="nav-item" data-module="ubicaciones" title="Ubicaciones"><i class="nav-icon ti ti-map-pin"></i><span class="nav-label">Ubicaciones</span></div>
+      <div class="nav-item" data-module="materiaprima" title="Materia prima"><i class="nav-icon ti ti-cylinder"></i><span class="nav-label">Materia prima</span></div>
+
+      <div class="nav-grupo" data-grupo="operacion">Operación</div>
+      <div class="nav-item" data-module="ordenes" title="Órdenes de despacho"><i class="nav-icon ti ti-truck-delivery"></i><span class="nav-label">Órdenes</span><span class="nav-cnt" id="cnt-ordenes"></span></div>
+      <div class="nav-item" data-module="tickets" title="Tickets de fabricación"><i class="nav-icon ti ti-ticket"></i><span class="nav-label">Tickets</span></div>
+      <div class="nav-item" data-module="planta" title="En planta"><i class="nav-icon ti ti-building-factory-2"></i><span class="nav-label">En planta</span></div>
+
+      <div class="nav-grupo" data-grupo="produccion">Producción</div>
+      <div class="nav-item" data-module="operario" title="Producción"><i class="nav-icon ti ti-tool"></i><span class="nav-label">Producción</span></div>
+      <div class="nav-item" data-module="miavance" title="Mi avance"><i class="nav-icon ti ti-trending-up"></i><span class="nav-label">Mi avance</span></div>
+
+      <div class="nav-grupo" data-grupo="registro">Registro</div>
+      <div class="nav-item" data-module="historial" title="Historial"><i class="nav-icon ti ti-history"></i><span class="nav-label">Historial</span></div>
+    </nav>
 
     <!-- CONTENIDO: cada módulo se inyecta aquí desde su propio archivo -->
-    <div class="main-content" id="main-content">
+    <main class="main-content" id="main-content">
       <div class="module-title">Cargando…</div>
-    </div>
+    </main>
 
   </div>
 
-  <!-- Barra de estado -->
-  <div class="status-bar flex text-[11.5px]">
-    <div class="status-cell flex-1" id="status-message">Listo</div>
-    <div class="status-cell w-36">Usuario: admin</div>
-  </div>
+  <!-- Barra inferior (solo celular): módulos más usados del perfil + "Más" -->
+  <nav class="bottom-nav" id="bottom-nav" aria-label="Accesos rápidos"></nav>
 
 </div>
+
+<!-- Mensajes cortos de los módulos (antes iban en la barra de estado de abajo) -->
+<div class="aviso-flotante" id="status-message" role="status" aria-live="polite"></div>
 
 <!-- Orden importa: config primero, luego los módulos (definen sus funciones),
      y app.js al final (que arranca cargando el módulo inicial) -->
