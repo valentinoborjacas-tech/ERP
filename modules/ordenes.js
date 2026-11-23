@@ -47,6 +47,10 @@ window.initOrdenesModule = function () {
 
 let vistaOrdenes = 'activas';
 
+// Tolerancia de producción que manda el servidor con el detalle de la orden (0.10 = ±10 %)
+let toleranciaActual = 0;
+const pctTolerancia = () => `±${Math.round(toleranciaActual * 100)} %`;
+
 // ---------- Refresco automático ----------
 // En el celular la pestaña queda abierta días: al volver a la app (o cada minuto mientras
 // se mira la lista) se vuelven a pedir las órdenes, así aparecen las nuevas de cobranzas.
@@ -116,7 +120,7 @@ function badgeEstadoOrden(estado) {
 
 function renderOrdenesFiltered() {
   const term = (document.getElementById('ord-search-input').value || '').toLowerCase().trim();
-  const esActiva = (o) => o.estado !== 'Despachada';
+  const esActiva = ordenActiva;
   document.getElementById('ord-n-activas').textContent = ordenesData.filter(esActiva).length;
   document.getElementById('ord-n-despachadas').textContent = ordenesData.filter((o) => !esActiva(o)).length;
 
@@ -134,12 +138,16 @@ function renderOrdenesFiltered() {
   const cont = document.getElementById('ordenes-lista');
   cont.innerHTML = lista.length
     ? lista.map((x) => ordenCardHtml(x, hoy)).join('')
-    : `<div class="ord-vacio">${term ? 'Ninguna orden coincide con la búsqueda.' : vistaOrdenes === 'activas' ? '🎉 No hay órdenes pendientes.' : 'Todavía no hay órdenes despachadas.'}</div>`;
+    : `<div class="ord-vacio">${term ? 'Ninguna orden coincide con la búsqueda.' : vistaOrdenes === 'activas' ? '🎉 No hay órdenes pendientes.' : 'Todavía no hay órdenes terminadas.'}</div>`;
 }
 
+// Terminada = salió todo (o completa dentro de la tolerancia) o se cerró el saldo
+const ORDEN_TERMINADA = ['Despachada', 'Cerrada'];
+function ordenActiva(o) { return ORDEN_TERMINADA.indexOf(o.estado) === -1; }
+
 function ordenCardHtml({ o, d, entrega }, hoy) {
-  const cls = { 'Pendiente': 'pendiente', 'En preparación': 'preparacion', 'Despachada parcial': 'parcial', 'Despachada': 'despachada' }[o.estado] || 'pendiente';
-  const activa = o.estado !== 'Despachada';
+  const cls = { 'Pendiente': 'pendiente', 'En preparación': 'preparacion', 'Despachada parcial': 'parcial', 'Despachada': 'despachada', 'Cerrada': 'cerrada' }[o.estado] || 'pendiente';
+  const activa = ordenActiva(o);
 
   // Aviso de entrega: vencida / hoy / mañana
   let chipEntrega = '';
@@ -154,7 +162,7 @@ function ordenCardHtml({ o, d, entrega }, hoy) {
     chipEntrega = `<span class="ord-chip ${tono}">📅 ${txt}</span>`;
   }
 
-  const detalle = [d.sede && `Sede ${d.sede}`, d.oc && `OC ${d.oc.replace(/^[a-z]\s+/i, '')}`].filter(Boolean).map(escHtml).join(' · ');
+  const detalle = [d.sede && `Sede ${d.sede}`, d.oc && `OC ${d.oc.replace(/^[a-z]\s+/i, '')}`, o.estado === 'Cerrada' && o.cierreMotivo && `Cerrada: ${o.cierreMotivo}`].filter(Boolean).map(escHtml).join(' · ');
   const principal = activa
     ? `<button class="ord-btn primario" data-action="preparar" data-numero="${escHtml(o.numero)}">📦 ${{ 'Pendiente': 'Preparar', 'En preparación': 'Continuar preparando' }[o.estado] || 'Despachar lo que falta'}</button>`
     : '';
@@ -243,7 +251,7 @@ function abrirVerOrden(numero) {
   document.getElementById('order-view-numero').textContent = numero;
   // Encabezado igual que la tarjeta: cliente, estado y datos de la orden
   const d = orden ? datosHojaOrden(orden) : { cliente: '', notas: [] };
-  const cls = { 'Pendiente': 'pendiente', 'En preparación': 'preparacion', 'Despachada parcial': 'parcial', 'Despachada': 'despachada' }[orden && orden.estado] || 'pendiente';
+  const cls = { 'Pendiente': 'pendiente', 'En preparación': 'preparacion', 'Despachada parcial': 'parcial', 'Despachada': 'despachada', 'Cerrada': 'cerrada' }[orden && orden.estado] || 'pendiente';
   const datos = [d.sede && `Sede ${d.sede}`, d.oc && `OC ${d.oc.replace(/^[a-z]\s+/i, '')}`, d.entrega && `Entrega ${d.entrega}`, ...(d.notas || [])].filter(Boolean);
   document.getElementById('order-view-info').innerHTML = orden ? `
     <div class="ord-card-top">
@@ -253,6 +261,7 @@ function abrirVerOrden(numero) {
     ${datos.length ? `<div class="ord-detalle">${datos.map(escHtml).join(' · ')}</div>` : ''}` : '';
   document.getElementById('order-view-tbody').innerHTML = `<tr><td colspan="8">Cargando productos…</td></tr>`;
   document.getElementById('order-view-despachos').innerHTML = '';
+  document.getElementById('order-view-cierre').innerHTML = '';
   panel.classList.add('show');
   panel.dataset.numero = numero;
   panel.scrollTop = 0;
@@ -271,32 +280,114 @@ function abrirVerOrden(numero) {
 }
 
 function renderVerOrdenDetalle(detalle) {
-  const badgeLinea = { Despachado: 'badge-ok', Parcial: 'badge-warn' };
+  const badgeLinea = { Despachado: 'badge-ok', Parcial: 'badge-warn', Cerrada: 'badge-neutral' };
+  if (Array.isArray(detalle) && detalle.length && typeof detalle[0].tolerancia === 'number') toleranciaActual = detalle[0].tolerancia;
   document.getElementById('order-view-tbody').innerHTML = detalle.length
     ? detalle.map((l) => {
         const solicitado = Number(l.cantidadSolicitada) || 0;
         const despachado = Number(l.cantidadDespachada) || 0;
         const listo = Number(l.cantidadPreparada) || 0;
+        const falta = l.cerrada ? 0 : Math.max(solicitado - despachado - listo, 0);
         return `
           <tr>
-            <td data-label="ID">${l.idArticulo}</td>
-            <td data-label="Descripción">${l.descripcion}</td>
+            <td data-label="ID">${escHtml(l.idArticulo)}</td>
+            <td data-label="Descripción">${escHtml(l.descripcion)}</td>
             <td data-label="Pedido" class="oi-num">${solicitado}</td>
             <td data-label="Listo" class="oi-num">${listo || '—'}</td>
             <td data-label="Salió" class="oi-num">${despachado || '—'}</td>
-            <td data-label="Falta" class="oi-num oi-falta${Math.max(solicitado - despachado - listo, 0) ? '' : ' oi-cero'}"><strong>${Math.max(solicitado - despachado - listo, 0)}</strong></td>
-            <td data-label="Ubicación"${l.idUbicacion ? '' : ' class="oi-sin-ubic"'}>${l.idUbicacion || '—'}</td>
+            <td data-label="Falta" class="oi-num oi-falta${falta ? '' : ' oi-cero'}"><strong>${falta}</strong></td>
+            <td data-label="Ubicación"${l.idUbicacion ? '' : ' class="oi-sin-ubic"'}>${escHtml(l.idUbicacion || '—')}</td>
             <td data-label="Estado">${(() => {
               // Producto separado pero aún sin despachar
               let est = l.estadoLinea || 'Pendiente';
               if (est === 'Pendiente' && listo > 0) est = listo >= solicitado - despachado ? 'Listo' : 'En preparación';
-              else if (est !== 'Despachado' && l.enSelladora && !listo) est = '🏭 En selladora';
-              const cls = badgeLinea[est] || (est === 'Listo' || est === 'En preparación' || est === '🏭 En selladora' ? 'badge-preparacion' : 'badge-neutral');
-              return `<span class="badge ${cls}">${est}</span>`;
+              else if (est !== 'Despachado' && est !== 'Cerrada' && l.enSelladora && !listo) est = '🏭 En selladora';
+              // Completo dentro de la tolerancia (salió algo menos de lo pedido)
+              if (est === 'Despachado' && l.cerrada && despachado < solicitado) est = 'Completo (tolerancia)';
+              const cls = badgeLinea[est] || (est === 'Completo (tolerancia)' ? 'badge-ok' : est === 'Listo' || est === 'En preparación' || est === '🏭 En selladora' ? 'badge-preparacion' : 'badge-neutral');
+              return `<span class="badge ${cls}">${escHtml(est)}</span>`;
             })()}</td>
           </tr>`;
       }).join('')
     : `<tr><td colspan="8">Esta orden no tiene productos registrados.</td></tr>`;
+  renderCierreSaldo(Array.isArray(detalle) ? detalle : []);
+}
+
+// ---------- Cerrar saldo ----------
+// El cliente ya no quiere lo que falta (o se acordó entregar menos): la orden se da por
+// terminada con lo entregado. Queda el motivo, la fecha y quién la cerró.
+const MOTIVOS_CIERRE = [
+  'El cliente ya no necesita el saldo',
+  'Se acordó con el cliente entregar menos',
+  'Producto cambiado por otro en una nueva orden',
+  'Pedido duplicado o cargado por error'
+];
+
+function renderCierreSaldo(detalle) {
+  const panel = document.getElementById('order-view-panel');
+  const cont = document.getElementById('order-view-cierre');
+  if (!cont) return;
+  const numero = panel.dataset.numero;
+  const orden = ordenesData.find((o) => o.numero === numero);
+
+  if (orden && orden.estado === 'Cerrada') {
+    const f = orden.fechaCierre ? new Date(orden.fechaCierre).toLocaleDateString('es-PE') : '';
+    cont.innerHTML = `<div class="cierre-info">✂ <b>Saldo cerrado</b>${f ? ` el ${escHtml(f)}` : ''}${orden.cerradaPor ? ` por ${escHtml(orden.cerradaPor)}` : ''}${orden.cierreMotivo ? `<div>Motivo: ${escHtml(orden.cierreMotivo)}</div>` : ''}</div>`;
+    return;
+  }
+  const conSaldo = detalle.filter((l) => !l.cerrada && (Number(l.cantidadDespachada) || 0) < (Number(l.cantidadSolicitada) || 0));
+  if (!orden || !ordenActiva(orden) || !conSaldo.length) { cont.innerHTML = ''; return; }
+
+  const resumen = conSaldo.map((l) => `${l.descripcion}: faltan ${fmtCant((Number(l.cantidadSolicitada) || 0) - (Number(l.cantidadDespachada) || 0))}`);
+  cont.innerHTML = `
+    <div class="cierre-caja">
+      <button type="button" class="ord-btn cierre-abrir">✂ Cerrar saldo</button>
+      <div class="cierre-form" hidden>
+        <div class="cierre-titulo">Cerrar el saldo de la orden</div>
+        <div class="cierre-txt">Lo que falta <b>ya no se va a despachar</b> y la orden pasa a <b>Terminadas</b>. Lo que ya salió y sus guías no cambian.</div>
+        <ul class="cierre-lista">${resumen.map((t) => `<li>${escHtml(t)}</li>`).join('')}</ul>
+        <label class="dsp-label" for="cierre-motivo">Motivo</label>
+        <select id="cierre-motivo" class="cierre-input">
+          <option value="">Elige el motivo…</option>
+          ${MOTIVOS_CIERRE.map((m) => `<option>${escHtml(m)}</option>`).join('')}
+          <option value="otro">Otro…</option>
+        </select>
+        <input type="text" id="cierre-detalle" class="cierre-input" maxlength="200" placeholder="Detalle (opcional; obligatorio si es «Otro»)" />
+        <div class="dsp-pie-btns">
+          <button type="button" class="ord-btn cierre-cancelar">Cancelar</button>
+          <button type="button" class="ord-btn peligro cierre-confirmar">✂ Cerrar saldo</button>
+        </div>
+      </div>
+    </div>`;
+
+  const form = cont.querySelector('.cierre-form');
+  const abrir = cont.querySelector('.cierre-abrir');
+  abrir.addEventListener('click', () => { form.hidden = false; abrir.hidden = true; form.scrollIntoView({ block: 'nearest' }); });
+  cont.querySelector('.cierre-cancelar').addEventListener('click', () => { form.hidden = true; abrir.hidden = false; });
+  cont.querySelector('.cierre-confirmar').addEventListener('click', () => confirmarCierreSaldo(numero, cont));
+}
+
+function confirmarCierreSaldo(numero, cont) {
+  const sel = cont.querySelector('#cierre-motivo').value;
+  const det = cont.querySelector('#cierre-detalle').value.trim();
+  if (!sel) { alert('Elige el motivo del cierre.'); return; }
+  if (sel === 'otro' && !det) { alert('Escribe el motivo en el detalle.'); return; }
+  const motivo = sel === 'otro' ? det : (det ? `${sel} — ${det}` : sel);
+  if (!confirm(`¿Cerrar el saldo de la orden ${numero}?\n\nLo que falta ya no se despachará.\nMotivo: ${motivo}`)) return;
+
+  const btn = cont.querySelector('.cierre-confirmar');
+  btn.disabled = true;
+  btn.textContent = 'Cerrando…';
+  fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'cerrar_saldo', numero, motivo, usuario: 'almacenero' }) })
+    .then((r) => r.json())
+    .then((res) => {
+      if (!res.ok) { alert('Error: ' + (res.error || 'no se pudo cerrar el saldo')); return; }
+      document.getElementById('order-view-panel').classList.remove('show');
+      alert(`Listo: la orden ${numero} quedó cerrada y pasó a Terminadas.`);
+      fetchOrdenes();
+    })
+    .catch((err) => alert('Error de conexión: ' + err.message))
+    .finally(() => { btn.disabled = false; btn.textContent = '✂ Cerrar saldo'; });
 }
 
 function renderVerOrdenDespachos(lineas) {
@@ -445,7 +536,7 @@ function abrirDespacho(numero) {
   // Mismo resumen que la tarjeta de la orden
   const orden = ordenesData.find((o) => o.numero === numero);
   const d = orden ? datosHojaOrden(orden) : { cliente: '' };
-  const cls = { 'Pendiente': 'pendiente', 'En preparación': 'preparacion', 'Despachada parcial': 'parcial', 'Despachada': 'despachada' }[orden && orden.estado] || 'pendiente';
+  const cls = { 'Pendiente': 'pendiente', 'En preparación': 'preparacion', 'Despachada parcial': 'parcial', 'Despachada': 'despachada', 'Cerrada': 'cerrada' }[orden && orden.estado] || 'pendiente';
   const datos = [d.sede && `Sede ${d.sede}`, d.oc && `OC ${d.oc.replace(/^[a-z]\s+/i, '')}`, d.entrega && `Entrega ${d.entrega}`].filter(Boolean);
   document.getElementById('dispatch-info').innerHTML = orden ? `
     <div class="ord-card-top">
@@ -471,22 +562,28 @@ function renderDespachoTabla(detalle) {
   const cont = document.getElementById('dispatch-tbody');
   if (!detalle.length) { cont.innerHTML = `<div class="ord-vacio">Esta orden no tiene productos.</div>`; return; }
 
+  toleranciaActual = detalle.length && typeof detalle[0].tolerancia === 'number' ? detalle[0].tolerancia : 0;
   cont.innerHTML = detalle.map((linea) => {
     const pedido = Number(linea.cantidadSolicitada) || 0;
     const despachado = Number(linea.cantidadDespachada) || 0;
-    const pendiente = Math.max(pedido - despachado, 0);
+    const pendiente = linea.cerrada ? 0 : Math.max(pedido - despachado, 0);
+    // Tope con la tolerancia de producción (ej. pedido 10,000 → pueden salir hasta 11,000)
+    const maximo = typeof linea.cantidadMaxima === 'number' ? linea.cantidadMaxima : pendiente;
     const titulo = `<div class="dsp-head"><span class="dsp-id">${escHtml(linea.idArticulo)}</span><span class="dsp-desc">${escHtml(linea.descripcion)}</span></div>`;
 
-    // Producto que ya salió completo: una línea, sin casilla
+    // Producto terminado (salió todo, completo dentro de la tolerancia o saldo cerrado): una línea, sin casilla
     if (pendiente <= 0) {
-      return `<div class="dsp-card hecho">${titulo}<span class="ord-estado despachada">✓ Salió todo · ${fmtCant(pedido)}</span></div>`;
+      const txt = linea.cerrada && despachado < pedido
+        ? (despachado ? `✓ Cerrado · salió ${fmtCant(despachado)} de ${fmtCant(pedido)}` : '✕ Cerrado sin despachar')
+        : `✓ Salió todo · ${fmtCant(despachado)}${despachado > pedido ? ` (pedido ${fmtCant(pedido)})` : ''}`;
+      return `<div class="dsp-card hecho">${titulo}<span class="ord-estado ${linea.cerrada && despachado < pedido ? 'cerrada' : 'despachada'}">${txt}</span></div>`;
     }
 
     // Lo guardado como avance (listo, aún sin despachar) aparece ya cargado
-    const preparada = Math.min(Number(linea.cantidadPreparada) || 0, pendiente);
+    const preparada = Math.min(Number(linea.cantidadPreparada) || 0, maximo);
     const enSell = !!linea.enSelladora;
     return `
-      <div class="dsp-card${enSell ? ' en-selladora' : ''}" data-id="${escHtml(linea.idArticulo)}" data-descripcion="${escHtml(linea.descripcion)}" data-pendiente="${pendiente}" data-preparada="${preparada}" data-selladora="${enSell ? '1' : ''}">
+      <div class="dsp-card${enSell ? ' en-selladora' : ''}" data-id="${escHtml(linea.idArticulo)}" data-descripcion="${escHtml(linea.descripcion)}" data-pedido="${pedido}" data-despachado="${despachado}" data-pendiente="${pendiente}" data-maximo="${maximo}" data-preparada="${preparada}" data-selladora="${enSell ? '1' : ''}">
         ${titulo}
         <div class="dsp-sell-aviso">🏭 Se está haciendo en la selladora</div>
         <div class="dsp-nums">
@@ -497,10 +594,11 @@ function renderDespachoTabla(detalle) {
         <div class="dsp-entrada">
           <label class="dsp-label">Listo / sale ahora</label>
           <div class="dsp-entrada-fila">
-            <input type="number" class="disp-cantidad" value="${preparada || ''}" placeholder="0" min="0" max="${pendiente}" inputmode="numeric" />
+            <input type="number" class="disp-cantidad" value="${preparada || ''}" placeholder="0" min="0" max="${maximo}" inputmode="numeric" />
             <button type="button" class="ord-btn disp-completo">✓ Todo (${fmtCant(pendiente)})</button>
           </div>
           <button type="button" class="ord-btn dsp-btn-sell${enSell ? ' activo' : ''}">${enSell ? '🏭 En selladora · tocar para quitar' : '🏭 En selladora'}</button>
+          <div class="dsp-extra"></div>
           ${preparada ? `<div class="dsp-nota">Avance guardado: ${fmtCant(preparada)}</div>` : ''}
         </div>
       </div>`;
@@ -557,17 +655,25 @@ function filasDespacho() {
 
 function actualizarFaltaFila(fila) {
   const pendiente = Number(fila.dataset.pendiente) || 0;
+  const maximo = Number(fila.dataset.maximo) || pendiente;
   const input = fila.querySelector('.disp-cantidad');
   let sale = parseInt(input.value, 10) || 0;
   if (sale < 0) { sale = 0; input.value = ''; }
-  if (sale > pendiente) { sale = pendiente; input.value = pendiente; }
+  if (sale > maximo) { sale = maximo; input.value = maximo; }
   const falta = Math.max(pendiente - sale, 0);
+  // Producción de más, dentro de la tolerancia
+  const extra = fila.querySelector('.dsp-extra');
+  if (extra) {
+    extra.textContent = sale > pendiente
+      ? `+${fmtCant(sale - pendiente)} sobre lo pedido (permitido hasta +${fmtCant(maximo - pendiente)}, ${pctTolerancia()})`
+      : '';
+  }
   const celda = fila.querySelector('.disp-falta');
   celda.textContent = fmtCant(falta);
   fila.querySelector('.dsp-falta').classList.toggle('cero', falta === 0);
   fila.classList.toggle('completo', sale > 0 && falta === 0);
   fila.classList.toggle('con-cantidad', sale > 0);
-  fila.querySelector('.disp-completo').classList.toggle('activo', sale > 0 && sale === pendiente);
+  fila.querySelector('.disp-completo').classList.toggle('activo', sale > 0 && sale >= pendiente);
   actualizarTotalDespacho();
 }
 
@@ -637,26 +743,33 @@ function abrirEleccionSalida() {
   if (!listos.length) { alert('No hay nada listo. Escribe cuánto está listo de cada producto o toca "✓ Todo".'); return; }
 
   document.getElementById('salida-numero').textContent = document.getElementById('dispatch-panel').dataset.numero;
-  document.getElementById('salida-lista').innerHTML = listos.map(({ fila, cantidad }) => {
-    const pendiente = Number(fila.dataset.pendiente) || 0;
-    const parcial = cantidad < pendiente ? `<span class="sal-parcial">de ${fmtCant(pendiente)} que faltan</span>` : '<span class="sal-ok">completo</span>';
+  document.getElementById('salida-lista').innerHTML = listos.map(({ fila, cantidad }, i) => {
+    const maximo = Number(fila.dataset.maximo) || Number(fila.dataset.pendiente) || 0;
     return `
-      <label class="sal-item marcado" data-id="${escHtml(fila.dataset.id)}">
-        <input type="checkbox" class="sal-check" checked />
-        <span class="sal-texto">
-          <span class="dsp-head"><span class="dsp-id">${escHtml(fila.dataset.id)}</span><span class="dsp-desc">${escHtml(fila.dataset.descripcion)}</span></span>
-          <span class="sal-cant">Sube: <input type="number" class="sal-num" value="${cantidad}" min="1" max="${pendiente}" inputmode="numeric" /> ${parcial}</span>
-        </span>
-      </label>`;
+      <div class="sal-item marcado" data-id="${escHtml(fila.dataset.id)}" data-pedido="${fila.dataset.pedido}" data-despachado="${fila.dataset.despachado}" data-pendiente="${fila.dataset.pendiente}">
+        <input type="checkbox" class="sal-check" id="sal-c-${i}" checked />
+        <div class="sal-texto">
+          <label class="dsp-head" for="sal-c-${i}"><span class="dsp-id">${escHtml(fila.dataset.id)}</span><span class="dsp-desc">${escHtml(fila.dataset.descripcion)}</span></label>
+          <div class="sal-cant">Sube: <input type="number" class="sal-num" value="${cantidad}" min="1" max="${maximo}" inputmode="numeric" /> <span class="sal-estado"></span></div>
+          <label class="sal-cerrar"><input type="checkbox" class="sal-cerrar-check" /> <span class="sal-cerrar-txt"></span></label>
+        </div>
+      </div>`;
   }).join('');
 
   document.querySelectorAll('#salida-lista .sal-item').forEach((item) => {
     const check = item.querySelector('.sal-check');
     const num = item.querySelector('.sal-num');
     check.addEventListener('change', actualizarSalida);
+    item.querySelector('.sal-cerrar-check').addEventListener('change', actualizarSalida);
     num.addEventListener('input', () => {
       const max = Number(num.max) || 0;
       if ((parseInt(num.value, 10) || 0) > max) num.value = max;
+      actualizarSalida();
+    });
+    // Tocar cualquier parte libre de la tarjeta marca o desmarca el producto
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('input, label')) return;
+      check.checked = !check.checked;
       actualizarSalida();
     });
   });
@@ -680,7 +793,9 @@ function actualizarSalida() {
   items.forEach((item) => {
     const on = item.querySelector('.sal-check').checked;
     item.classList.toggle('marcado', on);
-    if (on) { marcados++; unidades += parseInt(item.querySelector('.sal-num').value, 10) || 0; }
+    const sube = parseInt(item.querySelector('.sal-num').value, 10) || 0;
+    if (on) { marcados++; unidades += sube; }
+    estadoItemSalida(item, on ? sube : 0);
   });
   document.getElementById('salida-total').textContent = marcados
     ? `Suben ${marcados} de ${items.length} productos · ${fmtCant(unidades)} unidades`
@@ -689,6 +804,34 @@ function actualizarSalida() {
   btn.disabled = marcados === 0;
   btn.textContent = marcados ? `🚚 Despachar ${marcados} producto${marcados === 1 ? '' : 's'}` : '🚚 Despachar';
   document.getElementById('salida-todos').textContent = marcados === items.length ? 'Quitar todos' : 'Marcar todos';
+}
+
+// Cómo queda el producto con lo que sube: completo, con producción de más, parcial,
+// o parcial pero dentro de la tolerancia (ahí se pregunta si darlo por completo).
+function estadoItemSalida(item, sube) {
+  const pedido = Number(item.dataset.pedido) || 0;
+  const despachado = Number(item.dataset.despachado) || 0;
+  const pendiente = Number(item.dataset.pendiente) || 0;
+  const minimo = Math.ceil(pedido * (1 - toleranciaActual) - 1e-9);
+  const total = despachado + sube;
+  const est = item.querySelector('.sal-estado');
+  const cerrar = item.querySelector('.sal-cerrar');
+  let puedeCerrar = false;
+
+  if (sube >= pendiente) {
+    est.className = 'sal-estado sal-ok';
+    est.textContent = sube > pendiente ? `completo · +${fmtCant(sube - pendiente)} extra` : 'completo';
+  } else {
+    est.className = 'sal-estado sal-parcial';
+    est.textContent = `de ${fmtCant(pendiente)} que faltan`;
+    puedeCerrar = toleranciaActual > 0 && sube > 0 && total >= minimo;
+  }
+  cerrar.classList.toggle('ver', puedeCerrar);
+  if (!puedeCerrar) cerrar.querySelector('.sal-cerrar-check').checked = false;
+  else {
+    cerrar.querySelector('.sal-cerrar-txt').innerHTML =
+      `<b>Dar por completo</b> — salen ${fmtCant(total)} de ${fmtCant(pedido)} (${Math.round(total / pedido * 100)} %), dentro de la tolerancia ${pctTolerancia()}. Si no lo marcas, quedan ${fmtCant(pedido - total)} pendientes.`;
+  }
 }
 
 function alternarTodosSalida() {
@@ -709,7 +852,8 @@ function confirmarDespacho() {
     const listo = parseInt(fila.querySelector('.disp-cantidad').value, 10) || 0;
     const sube = item.querySelector('.sal-check').checked ? (parseInt(item.querySelector('.sal-num').value, 10) || 0) : 0;
     if (sube > 0) {
-      lineas.push({ idArticulo: fila.dataset.id, descripcion: fila.dataset.descripcion, idUbicacion: '', cantidadDespachar: sube });
+      const cerrarLinea = item.querySelector('.sal-cerrar').classList.contains('ver') && item.querySelector('.sal-cerrar-check').checked;
+      lineas.push({ idArticulo: fila.dataset.id, descripcion: fila.dataset.descripcion, idUbicacion: '', cantidadDespachar: sube, cerrarLinea });
     }
     // Lo listo que no sube (todo o una parte) queda anotado para el próximo camión
     const resto = Math.max(listo - sube, 0);
@@ -801,9 +945,11 @@ function imprimirHojaOrden(numero) {
         const pedido = Number(l.cantidadSolicitada) || 0;
         const salio = Number(l.cantidadDespachada) || 0;
         const avance = salio + (Number(l.cantidadPreparada) || 0);
-        const completo = avance > 0 && avance >= pedido;
-        const listo = avance <= 0 ? '' : (completo ? 'COMPLETO' : fmt(avance));
-        const falta = avance <= 0 ? '' : (completo ? '—' : fmt(pedido - avance));
+        // Cerrado (por tolerancia o "Cerrar saldo"): ya no falta nada
+        const cerradoCorto = l.cerrada && avance < pedido;
+        const completo = (avance > 0 && avance >= pedido) || cerradoCorto;
+        const listo = cerradoCorto ? (salio ? `CERRADO (${fmt(salio)})` : 'CERRADO') : avance <= 0 ? '' : (completo ? 'COMPLETO' : fmt(avance));
+        const falta = cerradoCorto ? '—' : avance <= 0 ? '' : (completo ? '—' : fmt(pedido - avance));
         return `<tr><td class="hoja-centro">${i + 1}</td><td>${escHoja(l.idArticulo)}</td><td>${escHoja(l.descripcion)}</td>` +
           `<td class="hoja-num">${fmt(pedido)}</td>` +
           `<td class="${completo ? 'hoja-completo' : 'hoja-num'}">${listo}</td>` +
@@ -818,7 +964,7 @@ function imprimirHojaOrden(numero) {
         const primera = despachosLineas.find((x) => x.idDespacho === id);
         return id + ' · ' + new Date(primera.fecha).toLocaleDateString('es-PE');
       });
-      const estadoClase = { 'Pendiente': 'pendiente', 'En preparación': 'preparacion', 'Despachada parcial': 'parcial', 'Despachada': 'completado' }[orden.estado] || 'pendiente';
+      const estadoClase = { 'Pendiente': 'pendiente', 'En preparación': 'preparacion', 'Despachada parcial': 'parcial', 'Despachada': 'completado', 'Cerrada': 'completado' }[orden.estado] || 'pendiente';
       const estadoTexto = { 'Pendiente': 'PENDIENTE', 'En preparación': 'EN PREPARACIÓN', 'Despachada parcial': 'PARCIAL', 'Despachada': 'COMPLETADA' }[orden.estado] || String(orden.estado || '').toUpperCase();
 
       const fecha = orden.fecha ? new Date(orden.fecha).toLocaleDateString('es-PE') : '';

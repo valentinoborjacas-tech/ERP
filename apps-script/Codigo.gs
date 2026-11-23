@@ -73,6 +73,7 @@ function doPost(e) {
     if (data.action === 'crear_orden') return jsonResponse(crearOrden(data));
     if (data.action === 'despachar_orden') return jsonResponse(despacharOrden(data));
     if (data.action === 'guardar_avance') return jsonResponse(guardarAvanceOrden(data));
+    if (data.action === 'cerrar_saldo') return jsonResponse(cerrarSaldoOrden(data));
     if (data.action === 'ingresar_bovinas') return jsonResponse(ingresarBovinas(data));
     if (data.action === 'registrar_produccion') return jsonResponse(registrarProduccion(data));
     if (data.action === 'iniciar_produccion') return jsonResponse(iniciarProduccion(data));
@@ -398,6 +399,19 @@ function crearArticulo(data) {
 // Una orden puede despacharse en varias veces (despachos parciales). Cada despacho queda
 // registrado en la hoja DESPACHOS con su propio número (DES-0001...), y las cantidades
 // despachadas de ORDENES_DETALLE se van SUMANDO hasta completar lo solicitado.
+// ====== Tolerancia de producción ======
+// En bolsas casi nunca sale la cantidad exacta (piden 10,000 y salen 10,300 o 9,800) y el
+// cliente lo acepta dentro de un margen. Por defecto ±10 %; se cambia con la propiedad del
+// script TOLERANCIA_ORDENES (ej. 0.05 = ±5 %).
+function toleranciaOrdenes() {
+  const v = parseFloat(PropertiesService.getScriptProperties().getProperty('TOLERANCIA_ORDENES'));
+  return isNaN(v) || v < 0 || v > 0.5 ? 0.10 : v;
+}
+function maximoConTolerancia(solicitada, tol) { return Math.floor(solicitada * (1 + tol) + 1e-9); }
+function minimoConTolerancia(solicitada, tol) { return Math.ceil(solicitada * (1 - tol) - 1e-9); }
+// Producto dado por terminado aunque no salió todo (cierre por tolerancia o "Cerrar saldo")
+function esLineaCerrada(valor) { return String(valor || '').toUpperCase() === 'SI'; }
+
 function getOrdenesData() {
   const ordenes = sheetToObjects(getSheet(SHEET_ORDENES));
   return ordenes
@@ -409,19 +423,29 @@ function getOrdenesData() {
         fecha: fecha,
         solicitante: o.SOLICITANTE || '',
         estado: o.ESTADO || 'Pendiente',
-        observaciones: o.OBSERVACIONES || ''
+        observaciones: o.OBSERVACIONES || '',
+        // Solo si se cerró el saldo a mano ("Cerrar saldo")
+        cierreMotivo: o.CIERRE_MOTIVO || '',
+        fechaCierre: o.FECHA_CIERRE instanceof Date ? o.FECHA_CIERRE.toISOString() : (o.FECHA_CIERRE || ''),
+        cerradaPor: o.CERRADA_POR || ''
       };
     });
 }
 
 function getOrdenDetalle(numero) {
   const detalle = sheetToObjects(getSheet(SHEET_ORDENES_DETALLE));
+  const tol = toleranciaOrdenes();
   return detalle
     .filter(function (d) { return String(d.NUMERO_ORDEN) === String(numero); })
     .map(function (d) {
       const solicitada = Number(d.CANTIDAD_SOLICITADA) || 0;
       const despachada = Number(d.CANTIDAD_DESPACHADA) || 0;
+      const cerrada = esLineaCerrada(d.LINEA_CERRADA);
       return {
+        cerrada: cerrada,
+        tolerancia: tol,
+        // Lo máximo que todavía puede salir (pedido + tolerancia − lo ya despachado)
+        cantidadMaxima: cerrada ? 0 : Math.max(maximoConTolerancia(solicitada, tol) - despachada, 0),
         idArticulo: d.ID_ARTICULO,
         descripcion: d.DESCRIPCION || '',
         cantidadSolicitada: solicitada,
@@ -430,7 +454,7 @@ function getOrdenDetalle(numero) {
         fechaAvance: d.FECHA_AVANCE instanceof Date ? d.FECHA_AVANCE.toISOString() : (d.FECHA_AVANCE || ''),
         // El material todavía se está sellando en la máquina (no hay cantidad lista aún)
         enSelladora: String(d.EN_SELLADORA || '').toUpperCase() === 'SI',
-        cantidadPendiente: Math.max(solicitada - despachada, 0),
+        cantidadPendiente: cerrada ? 0 : Math.max(solicitada - despachada, 0),
         idUbicacion: d.ID_UBICACION || '',
         estadoLinea: d.ESTADO_LINEA || 'Pendiente'
       };
@@ -538,13 +562,17 @@ function guardarAvanceOrden(data) {
 
     const errores = [];
     const cambios = [];
+    const tol = toleranciaOrdenes();
+    const colCerrada = headers.indexOf('LINEA_CERRADA');
     (data.lineas || []).forEach(function (l) {
       const idArt = String(l.idArticulo);
       const fila = filasOrden.find(function (i) { return String(values[i][colId]) === idArt; });
       if (fila === undefined) { errores.push(idArt + ': no pertenece a esta orden'); return; }
       const cantidad = Math.max(Number(l.cantidadPreparada) || 0, 0);
-      const pendiente = Math.max((Number(values[fila][colCantSol]) || 0) - (Number(values[fila][colCantDesp]) || 0), 0);
-      if (cantidad > pendiente) { errores.push(idArt + ': solo quedan ' + pendiente + ' por despachar'); return; }
+      const cerrada = colCerrada >= 0 && esLineaCerrada(values[fila][colCerrada]);
+      // Puede quedar listo hasta el pedido + la tolerancia
+      const pendiente = cerrada ? 0 : Math.max(maximoConTolerancia(Number(values[fila][colCantSol]) || 0, tol) - (Number(values[fila][colCantDesp]) || 0), 0);
+      if (cantidad > pendiente) { errores.push(idArt + (cerrada ? ': ya está cerrado' : ': como máximo pueden quedar ' + pendiente + ' listos')); return; }
       const sellActual = String(values[fila][colSell - 1] || '').toUpperCase() === 'SI';
       const sellNuevo = typeof l.enSelladora === 'boolean' ? l.enSelladora : sellActual;
       if (cantidad === (Number(values[fila][colPrep - 1]) || 0) && sellNuevo === sellActual) return; // sin cambios
@@ -572,7 +600,12 @@ function guardarAvanceOrden(data) {
       const ov = ordenSheet.getDataRange().getValues();
       const oh = ov[0].map(String);
       for (let i = 1; i < ov.length; i++) {
-        if (String(ov[i][oh.indexOf('NUMERO')]) === numero) { ordenSheet.getRange(i + 1, oh.indexOf('ESTADO') + 1).setValue(estado); break; }
+        if (String(ov[i][oh.indexOf('NUMERO')]) === numero) {
+          // Una orden cerrada a mano no se reabre por guardar un avance
+          if (String(ov[i][oh.indexOf('ESTADO')]) === 'Cerrada') { estado = 'Cerrada'; break; }
+          ordenSheet.getRange(i + 1, oh.indexOf('ESTADO') + 1).setValue(estado);
+          break;
+        }
       }
     }
     return { ok: true, actualizadas: cambios.length, estado: estado };
@@ -593,6 +626,7 @@ function despacharOrden(data) {
   lock.waitLock(20000);
   try {
     const detalleSheet = getSheet(SHEET_ORDENES_DETALLE);
+    asegurarColumna(detalleSheet, 'LINEA_CERRADA');
     const values = detalleSheet.getDataRange().getValues();
     const headers = values[0].map(String);
     const colNumero = headers.indexOf('NUMERO_ORDEN');
@@ -602,6 +636,11 @@ function despacharOrden(data) {
     const colUbic = headers.indexOf('ID_UBICACION');
     const colEstadoLinea = headers.indexOf('ESTADO_LINEA');
     const colPrep = headers.indexOf('CANTIDAD_PREPARADA'); // -1 si nunca se guardó un avance
+    const colCerrada = headers.indexOf('LINEA_CERRADA');
+    const tol = toleranciaOrdenes();
+    const lineaTerminada = function (i) {
+      return esLineaCerrada(values[i][colCerrada]) || (Number(values[i][colCantDesp]) || 0) >= (Number(values[i][colCantSol]) || 0);
+    };
 
     const filasOrden = [];
     for (let i = 1; i < values.length; i++) {
@@ -630,11 +669,23 @@ function despacharOrden(data) {
       if (fila === undefined) { errores.push(idArt + ': no pertenece a esta orden'); return; }
       if (descontarStock && !l.idUbicacion) { errores.push(idArt + ': elige de qué ubicación sale'); return; }
 
+      if (esLineaCerrada(values[fila][colCerrada])) { errores.push(idArt + ': ya está cerrado, no se puede despachar más'); return; }
+      const solicitadaL = Number(values[fila][colCantSol]) || 0;
+      const despachadaL = Number(values[fila][colCantDesp]) || 0;
+      // Puede salir hasta el pedido + la tolerancia (ej. 10,000 pedidas → hasta 11,000 con ±10 %)
       if (pendientePorFila[fila] === undefined) {
-        pendientePorFila[fila] = Math.max((Number(values[fila][colCantSol]) || 0) - (Number(values[fila][colCantDesp]) || 0), 0);
+        pendientePorFila[fila] = Math.max(maximoConTolerancia(solicitadaL, tol) - despachadaL, 0);
       }
       if (cantidad > pendientePorFila[fila]) {
-        errores.push(idArt + ': solo quedan ' + pendientePorFila[fila] + ' por despachar'); return;
+        errores.push(idArt + ': como máximo pueden salir ' + pendientePorFila[fila] + ' (pedido + ' + Math.round(tol * 100) + ' %)'); return;
+      }
+      // "Dar por completo": solo si con este despacho llega al mínimo aceptado (pedido − tolerancia)
+      let cerrar = false;
+      if (l.cerrarLinea === true && despachadaL + cantidad < solicitadaL) {
+        if (despachadaL + cantidad < minimoConTolerancia(solicitadaL, tol)) {
+          errores.push(idArt + ': para darlo por completo debe llegar al menos a ' + minimoConTolerancia(solicitadaL, tol) + '. Si el cliente ya no quiere el resto, usa "Cerrar saldo".'); return;
+        }
+        cerrar = true;
       }
       if (descontarStock) {
         const clave = idArt + '|' + String(l.idUbicacion);
@@ -644,7 +695,7 @@ function despacharOrden(data) {
       }
 
       pendientePorFila[fila] -= cantidad;
-      aplicar.push({ fila: fila, idArticulo: l.idArticulo, descripcion: l.descripcion || '', idUbicacion: descontarStock ? l.idUbicacion : '', cantidad: cantidad });
+      aplicar.push({ fila: fila, idArticulo: l.idArticulo, descripcion: l.descripcion || '', idUbicacion: descontarStock ? l.idUbicacion : '', cantidad: cantidad, cerrar: cerrar });
     });
     if (errores.length) return { ok: false, error: errores.join('\n') };
     if (!aplicar.length) return { ok: false, error: 'No hay cantidades a despachar.' };
@@ -676,13 +727,19 @@ function despacharOrden(data) {
       if (a.idUbicacion && ubicPrevias.indexOf(String(a.idUbicacion)) === -1) ubicPrevias.push(String(a.idUbicacion));
       detalleSheet.getRange(a.fila + 1, colCantDesp + 1).setValue(despachada);
       detalleSheet.getRange(a.fila + 1, colUbic + 1).setValue(ubicPrevias.join(', '));
-      detalleSheet.getRange(a.fila + 1, colEstadoLinea + 1).setValue(despachada >= solicitada ? 'Despachado' : 'Parcial');
+      // Dado por completo dentro de la tolerancia (ej. salieron 9,800 de 10,000)
+      if (a.cerrar) {
+        values[a.fila][colCerrada] = 'SI';
+        detalleSheet.getRange(a.fila + 1, colCerrada + 1).setValue('SI');
+      }
+      const terminada = lineaTerminada(a.fila);
+      detalleSheet.getRange(a.fila + 1, colEstadoLinea + 1).setValue(terminada ? 'Despachado' : 'Parcial');
       // Si ya salió todo, deja de estar "en selladora"
       const colSell = headers.indexOf('EN_SELLADORA');
-      if (colSell >= 0 && despachada >= solicitada) detalleSheet.getRange(a.fila + 1, colSell + 1).setValue('');
-      // Lo que estaba listo y ya salió deja de contarse como "listo"
+      if (colSell >= 0 && terminada) detalleSheet.getRange(a.fila + 1, colSell + 1).setValue('');
+      // Lo que estaba listo y ya salió deja de contarse como "listo" (si el producto terminó, no queda nada listo)
       if (colPrep >= 0) {
-        const preparada = Math.max((Number(values[a.fila][colPrep]) || 0) - a.cantidad, 0);
+        const preparada = terminada ? 0 : Math.max((Number(values[a.fila][colPrep]) || 0) - a.cantidad, 0);
         values[a.fila][colPrep] = preparada;
         detalleSheet.getRange(a.fila + 1, colPrep + 1).setValue(preparada);
       }
@@ -692,9 +749,7 @@ function despacharOrden(data) {
     });
 
     // 3) Estado de la orden mirando TODAS sus líneas (no solo las de este despacho)
-    const completa = filasOrden.every(function (i) {
-      return (Number(values[i][colCantDesp]) || 0) >= (Number(values[i][colCantSol]) || 0);
-    });
+    const completa = filasOrden.every(lineaTerminada);
     const estado = completa ? 'Despachada' : 'Despachada parcial';
 
     const ordenSheet = getSheet(SHEET_ORDENES);
@@ -710,6 +765,70 @@ function despacharOrden(data) {
     }
 
     return { ok: true, idDespacho: idDespacho, estado: estado, guia: guia };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// "Cerrar saldo": el cliente ya no quiere lo que falta (o se acordó entregar menos).
+// Da por terminados los productos con saldo y la orden queda "Cerrada", con motivo, fecha
+// y quién la cerró. No borra nada: lo despachado y sus guías se mantienen.
+function cerrarSaldoOrden(data) {
+  // data esperado: { numero, motivo, usuario }
+  const numero = String(data.numero || '');
+  const motivo = String(data.motivo || '').trim().slice(0, 300);
+  if (!numero) return { ok: false, error: 'Falta el número de orden' };
+  if (!motivo) return { ok: false, error: 'Escribe el motivo del cierre' };
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const detalleSheet = getSheet(SHEET_ORDENES_DETALLE);
+    asegurarColumna(detalleSheet, 'LINEA_CERRADA');
+    const values = detalleSheet.getDataRange().getValues();
+    const headers = values[0].map(String);
+    const colNumero = headers.indexOf('NUMERO_ORDEN');
+    const colCantSol = headers.indexOf('CANTIDAD_SOLICITADA');
+    const colCantDesp = headers.indexOf('CANTIDAD_DESPACHADA');
+    const colEstadoLinea = headers.indexOf('ESTADO_LINEA');
+    const colCerrada = headers.indexOf('LINEA_CERRADA');
+    const colPrep = headers.indexOf('CANTIDAD_PREPARADA');
+    const colSell = headers.indexOf('EN_SELLADORA');
+
+    const filasOrden = [];
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][colNumero]) === numero) filasOrden.push(i);
+    }
+    if (!filasOrden.length) return { ok: false, error: 'No se encontró la orden ' + numero };
+
+    let cerradas = 0;
+    filasOrden.forEach(function (i) {
+      const terminada = esLineaCerrada(values[i][colCerrada]) || (Number(values[i][colCantDesp]) || 0) >= (Number(values[i][colCantSol]) || 0);
+      if (terminada) return;
+      detalleSheet.getRange(i + 1, colCerrada + 1).setValue('SI');
+      detalleSheet.getRange(i + 1, colEstadoLinea + 1).setValue('Cerrada');
+      if (colPrep >= 0) detalleSheet.getRange(i + 1, colPrep + 1).setValue(0);
+      if (colSell >= 0) detalleSheet.getRange(i + 1, colSell + 1).setValue('');
+      cerradas++;
+    });
+    if (!cerradas) return { ok: false, error: 'Esta orden no tiene saldo pendiente.' };
+
+    const ordenSheet = getSheet(SHEET_ORDENES);
+    const colMotivo = asegurarColumna(ordenSheet, 'CIERRE_MOTIVO');
+    const colFecha = asegurarColumna(ordenSheet, 'FECHA_CIERRE');
+    const colPor = asegurarColumna(ordenSheet, 'CERRADA_POR');
+    const ov = ordenSheet.getDataRange().getValues();
+    const oh = ov[0].map(String);
+    for (let i = 1; i < ov.length; i++) {
+      if (String(ov[i][oh.indexOf('NUMERO')]) === numero) {
+        ordenSheet.getRange(i + 1, oh.indexOf('ESTADO') + 1).setValue('Cerrada');
+        ordenSheet.getRange(i + 1, colMotivo).setValue(motivo);
+        ordenSheet.getRange(i + 1, colFecha).setValue(new Date());
+        ordenSheet.getRange(i + 1, colPor).setValue(String(data.usuario || 'almacenero'));
+        break;
+      }
+    }
+    return { ok: true, estado: 'Cerrada', productosCerrados: cerradas };
   } finally {
     lock.releaseLock();
   }
