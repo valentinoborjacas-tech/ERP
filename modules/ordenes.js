@@ -8,7 +8,9 @@ let stockMapOc = {};
 window.initOrdenesModule = function () {
   // Siempre se entra a "Activas" (la pestaña de la pantalla se dibuja así)
   vistaOrdenes = 'activas';
-  // Si ya se habían cargado antes, se muestran al instante y luego se actualizan
+  // Si ya se habían cargado antes (en esta sesión o la última vez que se abrió la app),
+  // se muestran al instante y luego se actualizan
+  if (!ordenesData.length) ordenesData = leerOrdenesGuardadas() || [];
   if (ordenesData.length) renderOrdenesSeguro();
   fetchOrdenes();
 
@@ -85,6 +87,47 @@ function activarRefrescoOrdenes() {
   }, 60000);
 }
 
+// ---------- Memoria para que todo abra más rápido ----------
+// Cada consulta al servidor (Apps Script) tarda ~2 s aunque sea chica. Por eso:
+// · la lista de órdenes se guarda en el equipo y aparece al instante al abrir la app;
+// · los productos de las órdenes activas se piden por adelantado (Ver productos / Preparar
+//   abren sin esperar) y siempre se confirman con el servidor al abrirlas.
+const ORD_CACHE_KEY = 'erp_ordenes_cache_v1';
+const DETALLE_FRESCO_MS = 90000;
+const detalleCache = {}; // numero -> { data, t }
+
+function leerOrdenesGuardadas() {
+  try {
+    const x = JSON.parse(localStorage.getItem(ORD_CACHE_KEY) || 'null');
+    return x && Array.isArray(x.ordenes) ? x.ordenes : null;
+  } catch (e) { return null; }
+}
+function guardarOrdenesLocal(ords) {
+  try { localStorage.setItem(ORD_CACHE_KEY, JSON.stringify({ t: Date.now(), ordenes: ords })); } catch (e) { /* sin espacio: no pasa nada */ }
+}
+
+function pedirDetalle(numero) {
+  return fetch(`${API_URL}?action=orden_detalle&numero=${encodeURIComponent(numero)}&_=${Date.now()}`, { cache: 'no-store' })
+    .then((r) => r.json())
+    .then((data) => {
+      if (!Array.isArray(data)) throw new Error('respuesta inesperada del servidor');
+      detalleCache[numero] = { data, t: Date.now() };
+      return data;
+    });
+}
+
+// Trae por adelantado los productos de las órdenes activas (de a 3 a la vez)
+function precargarDetalles() {
+  const pendientes = ordenesData.filter(ordenActiva).map((o) => o.numero)
+    .filter((n) => !detalleCache[n] || Date.now() - detalleCache[n].t > DETALLE_FRESCO_MS);
+  let i = 0;
+  const siguiente = () => {
+    if (i >= pendientes.length) return;
+    pedirDetalle(pendientes[i++]).catch(() => {}).finally(siguiente);
+  };
+  for (let k = 0; k < 3; k++) siguiente();
+}
+
 function fetchOrdenes() {
   // Si el servidor tarda demasiado (señal débil), se corta y se avisa en vez de quedar "Cargando…"
   const control = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -93,8 +136,13 @@ function fetchOrdenes() {
     .then((r) => r.json())
     .then((data) => {
       if (!Array.isArray(data)) throw new Error('respuesta inesperada del servidor');
+      const cambio = JSON.stringify(ordenesData) !== JSON.stringify(data);
       ordenesData = data;
-      if (document.getElementById('ordenes-lista')) renderOrdenesSeguro();
+      guardarOrdenesLocal(data);
+      if (typeof pintarContadorOrdenes === 'function') pintarContadorOrdenes(data);
+      const lista = document.getElementById('ordenes-lista');
+      if (lista && (cambio || lista.dataset.dibujada !== '1')) renderOrdenesSeguro();
+      precargarDetalles();
     })
     .catch((err) => {
       const lista = document.getElementById('ordenes-lista');
@@ -113,6 +161,8 @@ function fetchOrdenes() {
 function renderOrdenesSeguro() {
   try {
     renderOrdenesFiltered();
+    const lista = document.getElementById('ordenes-lista');
+    if (lista) lista.dataset.dibujada = '1';
   } catch (err) {
     const lista = document.getElementById('ordenes-lista');
     if (lista) lista.innerHTML = `<div class="ord-vacio">No se pudo mostrar la lista: ${escHtml(err.message)}</div>`;
@@ -289,11 +339,17 @@ function abrirVerOrden(numero) {
   panel.dataset.numero = numero;
   panel.scrollTop = 0;
 
-  fetch(`${API_URL}?action=orden_detalle&numero=${encodeURIComponent(numero)}&_=${Date.now()}`, { cache: 'no-store' })
-    .then((r) => r.json())
-    .then(renderVerOrdenDetalle)
+  // Si los productos ya se trajeron antes, se muestran al instante y luego se actualizan
+  const enMemoria = detalleCache[numero];
+  const sigueAbierta = () => panel.dataset.numero === numero && panel.classList.contains('show');
+  if (enMemoria) renderVerOrdenDetalle(enMemoria.data);
+  pedirDetalle(numero)
+    .then((data) => {
+      if (!sigueAbierta()) return;
+      if (!enMemoria || JSON.stringify(enMemoria.data) !== JSON.stringify(data)) renderVerOrdenDetalle(data);
+    })
     .catch((err) => {
-      document.getElementById('order-view-tbody').innerHTML = `<tr><td colspan="7">Error: ${err.message}</td></tr>`;
+      if (!enMemoria && sigueAbierta()) document.getElementById('order-view-tbody').innerHTML = `<tr><td colspan="8">Error: ${escHtml(err.message)}</td></tr>`;
     });
 
   fetch(`${API_URL}?action=despachos&numero=${encodeURIComponent(numero)}&_=${Date.now()}`, { cache: 'no-store' })
@@ -407,6 +463,7 @@ function confirmarCierreSaldo(numero, cont) {
       if (!res.ok) { alert('Error: ' + (res.error || 'no se pudo cerrar el saldo')); return; }
       document.getElementById('order-view-panel').classList.remove('show');
       alert(`Listo: la orden ${numero} quedó cerrada y pasó a Terminadas.`);
+      delete detalleCache[numero];
       fetchOrdenes();
     })
     .catch((err) => alert('Error de conexión: ' + err.message))
@@ -571,10 +628,31 @@ function abrirDespacho(numero) {
   document.getElementById('dispatch-tbody').innerHTML = `<div class="ord-vacio">Cargando productos…</div>`;
   document.getElementById('dispatch-total').textContent = '';
 
-  fetch(`${API_URL}?action=orden_detalle&numero=${encodeURIComponent(numero)}&_=${Date.now()}`, { cache: 'no-store' })
-    .then((r) => r.json())
-    .then(renderDespachoTabla)
-    .catch((err) => { document.getElementById('dispatch-tbody').innerHTML = `<div class="ord-vacio">Error: ${escHtml(err.message)}</div>`; });
+  // Productos en memoria → al instante; luego se confirman con el servidor
+  const enMemoria = detalleCache[numero];
+  const sigueAbierta = () => panel.dataset.numero === numero && panel.classList.contains('show');
+  if (enMemoria) renderDespachoTabla(enMemoria.data);
+  pedirDetalle(numero)
+    .then((data) => {
+      if (!sigueAbierta()) return;
+      if (!enMemoria) { renderDespachoTabla(data); return; }
+      if (JSON.stringify(enMemoria.data) === JSON.stringify(data)) return;
+      // Cambió algo en el servidor: se redibuja sin perder lo que ya se escribió
+      const escrito = {};
+      filasDespacho().forEach((f) => {
+        const v = f.querySelector('.disp-cantidad').value;
+        if (v !== String(Number(f.dataset.preparada) || '')) escrito[f.dataset.id] = v;
+      });
+      renderDespachoTabla(data);
+      filasDespacho().forEach((f) => {
+        if (escrito[f.dataset.id] === undefined) return;
+        f.querySelector('.disp-cantidad').value = escrito[f.dataset.id];
+        actualizarFaltaFila(f);
+      });
+    })
+    .catch((err) => {
+      if (!enMemoria && sigueAbierta()) document.getElementById('dispatch-tbody').innerHTML = `<div class="ord-vacio">Error: ${escHtml(err.message)}</div>`;
+    });
 }
 
 const fmtCant = (n) => (Number(n) || 0).toLocaleString('es-PE');
@@ -661,6 +739,7 @@ function marcarEnSelladora(fila) {
       if (!res.ok) { alert('Error: ' + (res.error || 'no se pudo guardar')); return; }
       fila.dataset.selladora = nuevo ? '1' : '';
       fila.classList.toggle('en-selladora', nuevo);
+      delete detalleCache[numero];
       fetchOrdenes(); // el estado de la orden puede pasar a "En preparación"
     })
     .catch((err) => alert('Error de conexión: ' + err.message))
@@ -744,6 +823,7 @@ function guardarAvance() {
       if (resultado.ok) {
         document.getElementById('dispatch-panel').classList.remove('show');
         alert('Avance guardado. Todavía no se despachó nada: cuando salga el camión, abre la orden y toca "Despachar".');
+        delete detalleCache[numero];
         fetchOrdenes();
       } else {
         alert('Error: ' + (resultado.error || 'no se pudo guardar el avance'));
@@ -908,6 +988,7 @@ function confirmarDespacho() {
         document.getElementById('salida-panel').classList.remove('show');
         document.getElementById('dispatch-panel').classList.remove('show');
         mostrarGuia(numero, resultado.guia, resultado.idDespacho, resultado.estado);
+        delete detalleCache[numero];
         fetchOrdenes();
       } else if (/ubicaci[oó]n/i.test(resultado.error || '')) {
         // El Apps Script publicado todavía es la versión que exige stock

@@ -264,19 +264,27 @@ pintarSync();
 })();
 
 // ====== Contadores del menú (órdenes activas) ======
+// La usa también el módulo Órdenes cada vez que trae la lista (así no se pide dos veces)
+function pintarContadorOrdenes(ords) {
+  if (!Array.isArray(ords)) return;
+  gsCache.ordenes = ords;
+  const n = ords.filter((o) => ['Despachada', 'Cerrada'].indexOf(o.estado) === -1).length;
+  ['cnt-ordenes', 'bn-cnt-ordenes'].forEach((id) => {
+    const c = document.getElementById(id);
+    if (c) { c.textContent = n || ''; c.title = n ? `${n} órdenes activas` : ''; }
+  });
+}
+
 function actualizarContadores() {
   if (perfilActual !== 'almacenero') return;
+  // Mientras llega la respuesta, el último número conocido (guardado por el módulo Órdenes)
+  const cntVacio = !document.getElementById('cnt-ordenes').textContent;
+  if (cntVacio) { try { const x = JSON.parse(localStorage.getItem('erp_ordenes_cache_v1') || 'null'); if (x && x.ordenes) pintarContadorOrdenes(x.ordenes); } catch (e) { /* nada */ } }
+  // En Órdenes, el propio módulo trae la lista y actualiza el contador
+  if (moduloActual === 'ordenes') return;
   fetch(`${API_URL}?action=ordenes&_=${Date.now()}`, { cache: 'no-store' })
     .then((r) => r.json())
-    .then((ords) => {
-      if (!Array.isArray(ords)) return;
-      gsCache.ordenes = ords;
-      const n = ords.filter((o) => ['Despachada', 'Cerrada'].indexOf(o.estado) === -1).length;
-      ['cnt-ordenes', 'bn-cnt-ordenes'].forEach((id) => {
-        const c = document.getElementById(id);
-        if (c) { c.textContent = n || ''; c.title = n ? `${n} órdenes activas` : ''; }
-      });
-    })
+    .then(pintarContadorOrdenes)
     .catch(() => {});
 }
 setInterval(() => { if (document.visibilityState === 'visible') actualizarContadores(); }, 120000);
