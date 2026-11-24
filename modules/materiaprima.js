@@ -16,6 +16,11 @@ window.initMateriaprimaModule = function () {
     document.querySelectorAll('#mp-filtros .chip').forEach((x) => x.classList.toggle('on', x === c));
     renderMpFiltered();
   }));
+  // Filtro de las mangas en el detalle de un material
+  document.querySelectorAll('#mp-bov-filtros .chip').forEach((c) => c.addEventListener('click', () => {
+    mpBovFiltro = c.dataset.filtro;
+    renderBovinasDetalle();
+  }));
 
   document.getElementById('btn-ingresar-bovinas').addEventListener('click', abrirIngresoPanel);
    const _on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
@@ -162,6 +167,10 @@ function abrirDetalleBovinas(idMaterial) {
   const tbodyIngresos = document.getElementById('mp-bovinas-tbody');
   const tbodyProduccion = document.getElementById('mp-bovinas-produccion-tbody');
   tbodyIngresos.innerHTML = '<tr><td colspan="11">Cargando…</td></tr>';
+  mpBovinasDetalle = [];
+  mpBovFiltro = 'disponibles';
+  document.getElementById('mp-bov-resumen').textContent = '';
+  document.querySelectorAll('#mp-bov-filtros .chip b').forEach((b) => { b.textContent = ''; });
   tbodyProduccion.innerHTML = '<tr><td colspan="5">Cargando…</td></tr>';
 
   fetch(`${API_URL}?action=bovinas&id_material=${encodeURIComponent(idMaterial)}&_=${Date.now()}`, { cache: 'no-store' })
@@ -174,28 +183,8 @@ function abrirDetalleBovinas(idMaterial) {
         document.getElementById('mp-sin-zona-txt').textContent = `${sinZonaN} manga${sinZonaN > 1 ? 's' : ''} sin zona`;
         document.getElementById('mp-asig-zona').value = '';
 
-     tbodyIngresos.innerHTML = data.length
-  ? data.map((b) => {
-      const producida = b.nCorridas > 0;
-      const etiqueta = producida ? 'Producido' : (b.pesoActual > 0 ? 'Disponible' : 'Agotada');
-      const clase = producida || b.pesoActual <= 0 ? 'badge-danger' : 'badge-ok';
-          const editable = !producida && b.estado === 'Disponible';
-      return `
-      <tr>
-        <td data-label="Fecha">${formatFecha(b.fecha)}</td>
-        <td data-label="Días en almacén">${diasCeldaHtml(b, !producida && b.pesoActual > 0)}</td>
-        <td data-label="ID Bovina">${b.idBovina}</td>
-        <td data-label="Almacenero">${b.almacenero || ''}</td>
-                <td data-label="Proveedor">${b.proveedor}</td>
-        <td data-label="Guía / origen">${b.guia ? 'Guía ' + b.guia : b.origen === 'Ajuste de inventario' ? `<span class="badge badge-warn" title="${(b.observacion || '').replace(/"/g, '&quot;')}">Ajuste</span>` : '<span style="color:#888;">—</span>'}</td>
-        <td data-label="Zona">${b.zona || '<span style="color:#c62828;">Sin zona</span>'}</td>
-        <td data-label="Peso ingresado">${b.pesoInicial}</td>
-        <td data-label="Peso actual">${b.pesoActual}</td>
-        <td data-label="Estado"><span class="badge ${clase}">${etiqueta}</span></td>
-        <td data-label="Acciones">${editable ? `<button type="button" class="btn-classic mp-edit-btn" data-id="${b.idBovina}" data-peso="${b.pesoActual}">✏️ Editar peso</button> <button type="button" class="btn-classic mp-del-btn" data-id="${b.idBovina}" data-peso="${b.pesoActual}" style="color:#c62828;">🗑️ Eliminar</button>` : ''}</td>
-      </tr>`;
-    }).join('')
-  : '<tr><td colspan="11">Sin ingresos registrados.</td></tr>';
+      mpBovinasDetalle = Array.isArray(data) ? data : [];
+      renderBovinasDetalle();
 
       const produccionesDelMaterial = prodLogData.filter((p) => p.idMaterial === idMaterial);
 
@@ -210,6 +199,95 @@ tbodyProduccion.innerHTML = produccionesDelMaterial.length
       </tr>`).join('')
   : '<tr><td colspan="5">Sin producciones registradas.</td></tr>';
     });
+}
+
+// ---------- Mangas de un material: disponibles juntas ----------
+// Por defecto se ven solo las que se pueden usar, agrupadas por zona y de la más antigua a la
+// más nueva (la primera de cada zona es la que conviene usar primero). Las que tiene un operario
+// y las agotadas quedan en sus propios filtros.
+let mpBovinasDetalle = [];
+let mpBovFiltro = 'disponibles';
+
+function tipoBovina(b) {
+  if (b.estado === 'Reservada' || b.estado === 'En proceso') return 'enuso';
+  return Number(b.pesoActual) > 0 ? 'disponibles' : 'agotadas';
+}
+
+function renderBovinasDetalle() {
+  const tbody = document.getElementById('mp-bovinas-tbody');
+  if (!tbody) return;
+  const data = mpBovinasDetalle;
+  const kgDe = (arr) => arr.reduce((s, b) => s + (Number(b.pesoActual) || 0), 0);
+  const grupos = { disponibles: [], enuso: [], agotadas: [] };
+  data.forEach((b) => grupos[tipoBovina(b)].push(b));
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('mp-bov-n-disp', grupos.disponibles.length);
+  set('mp-bov-n-uso', grupos.enuso.length);
+  set('mp-bov-n-agot', grupos.agotadas.length);
+  set('mp-bov-n-todas', data.length);
+  document.querySelectorAll('#mp-bov-filtros .chip').forEach((c) => c.classList.toggle('on', c.dataset.filtro === mpBovFiltro));
+
+  const lista = mpBovFiltro === 'todas' ? data.slice() : grupos[mpBovFiltro].slice();
+  const resumen = document.getElementById('mp-bov-resumen');
+  if (resumen) {
+    resumen.innerHTML = mpBovFiltro === 'disponibles'
+      ? `<b>${grupos.disponibles.length}</b> mangas disponibles · <b>${mpKg(kgDe(grupos.disponibles))} kg</b>` +
+        (grupos.enuso.length ? ` · ${grupos.enuso.length} con operario (${mpKg(kgDe(grupos.enuso))} kg)` : '')
+      : mpBovFiltro === 'enuso' ? `${grupos.enuso.length} mangas reservadas o en máquina · ${mpKg(kgDe(grupos.enuso))} kg`
+      : mpBovFiltro === 'agotadas' ? `${grupos.agotadas.length} mangas ya usadas por completo`
+      : `${data.length} mangas ingresadas en total`;
+  }
+
+  // Orden: zona (1→4, sin zona al final) y dentro, la más antigua primero
+  const ordenZona = (z) => ({ 'Zona 1': 1, 'Zona 2': 2, 'Zona 3': 3, 'Zona 4': 4 })[z] || 9;
+  const porFecha = (a, b) => (Date.parse(a.fecha) || 0) - (Date.parse(b.fecha) || 0);
+  const agrupar = mpBovFiltro === 'disponibles' || mpBovFiltro === 'enuso';
+  if (agrupar) lista.sort((a, b) => ordenZona(a.zona) - ordenZona(b.zona) || porFecha(a, b));
+  else lista.sort((a, b) => porFecha(b, a));
+
+  if (!lista.length) {
+    tbody.innerHTML = `<tr><td colspan="11" class="mp-vacio">${{ disponibles: 'No hay mangas disponibles de este material.', enuso: 'Ningún operario tiene mangas de este material.', agotadas: 'Todavía no se agotó ninguna manga.', todas: 'Sin ingresos registrados.' }[mpBovFiltro]}</td></tr>`;
+    return;
+  }
+
+  let zonaAnt = null, html = '';
+  lista.forEach((b) => {
+    const zona = b.zona || 'Sin zona';
+    let primera = false;
+    if (agrupar && zona !== zonaAnt) {
+      const deZona = lista.filter((x) => (x.zona || 'Sin zona') === zona);
+      html += `<tr class="mp-bov-zona"><td colspan="11">${mpEsc(zona)}<span>${deZona.length} manga${deZona.length === 1 ? '' : 's'} · ${mpKg(kgDe(deZona))} kg</span></td></tr>`;
+      zonaAnt = zona;
+      primera = mpBovFiltro === 'disponibles';
+    }
+    html += filaBovinaHtml(b, primera);
+  });
+  tbody.innerHTML = html;
+}
+
+function filaBovinaHtml(b, usarPrimero) {
+  const tipo = tipoBovina(b);
+  const empezada = Number(b.nCorridas) > 0;
+  const etiqueta = tipo === 'enuso'
+    ? (b.estado === 'En proceso' ? 'En máquina' : `Reservada${b.reservadaPor ? ' · ' + b.reservadaPor : ''}`)
+    : tipo === 'agotadas' ? 'Agotada' : (empezada ? 'Disponible · empezada' : 'Disponible');
+  const clase = tipo === 'enuso' ? 'badge-preparacion' : tipo === 'agotadas' ? 'badge-neutral' : (empezada ? 'badge-warn' : 'badge-ok');
+  const editable = !empezada && b.estado === 'Disponible';
+  return `
+      <tr${tipo === 'agotadas' ? ' class="fila-cero"' : ''}>
+        <td data-label="Fecha" title="${mpEsc(formatFecha(b.fecha))}">${b.fecha && !isNaN(Date.parse(b.fecha)) ? new Date(b.fecha).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: '2-digit' }) : ''}</td>
+        <td data-label="Días en almacén">${diasCeldaHtml(b, tipo !== 'agotadas')}</td>
+        <td data-label="ID Bovina"><b>${mpEsc(b.idBovina)}</b>${usarPrimero ? '<span class="mp-primero" title="La más antigua de esta zona">Usar primero</span>' : ''}</td>
+        <td data-label="Almacenero">${mpEsc(b.almacenero || '')}</td>
+        <td data-label="Proveedor">${mpEsc(b.proveedor)}</td>
+        <td data-label="Guía / origen">${b.guia ? 'Guía ' + mpEsc(b.guia) : b.origen === 'Ajuste de inventario' ? `<span class="badge badge-warn" title="${mpEsc(b.observacion || '')}">Ajuste</span>` : '<span style="color:var(--texto-3);">—</span>'}</td>
+        <td data-label="Zona">${b.zona ? mpEsc(b.zona) : '<span style="color:var(--rojo);">Sin zona</span>'}</td>
+        <td data-label="Peso ingresado">${b.pesoInicial}</td>
+        <td data-label="Peso actual"><b>${b.pesoActual}</b></td>
+        <td data-label="Estado"><span class="badge ${clase}">${mpEsc(etiqueta)}</span></td>
+        <td class="mp-meta">${[b.zona || 'Sin zona', diasTexto(diasDesdeIngreso(b.fecha)), b.proveedor && b.proveedor !== '-' ? b.proveedor : '', b.guia ? 'Guía ' + b.guia : ''].filter(Boolean).map(mpEsc).join(' · ')}</td>
+        <td data-label="Acciones" class="mp-acc">${editable ? `<button type="button" class="btn-classic btn-icon-sm mp-edit-btn" data-id="${mpEsc(b.idBovina)}" data-peso="${b.pesoActual}" title="Editar peso" aria-label="Editar peso de ${mpEsc(b.idBovina)}"><i class="ti ti-pencil"></i></button> <button type="button" class="btn-classic btn-icon-sm mp-del-btn" data-id="${mpEsc(b.idBovina)}" data-peso="${b.pesoActual}" title="Eliminar" aria-label="Eliminar ${mpEsc(b.idBovina)}" style="color:var(--rojo);"><i class="ti ti-trash"></i></button>` : ''}</td>
+      </tr>`;
 }
 
 // ---------- Ingreso de bovinas ----------

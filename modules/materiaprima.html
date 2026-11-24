@@ -122,6 +122,40 @@
   .mp-tabla .mp-desc{ font-weight:500; }
   .mp-tabla .mp-stock{ font-weight:700; white-space:nowrap; }
   .mp-tabla tr.fila-cero td, .mp-tabla tr.fila-cero .mp-stock{ color:var(--texto-3); font-weight:400; }
+  #mp-bovinas-tbody td[data-label="ID Bovina"], #mp-bovinas-tbody td[data-label="Zona"], #mp-bovinas-tbody td[data-label="Días en almacén"]{ white-space:nowrap; }
+  #mp-bovinas-tbody td.mp-acc{ white-space:nowrap; }
+  #mp-bovinas-tbody td.mp-meta{ display:none; }
+  @media (min-width: 768px) and (max-width: 1499px){
+    #mp-bovinas-thead th:nth-child(4), #mp-bovinas-tbody td[data-label="Almacenero"]{ display:none; }
+  }
+  .mp-bov-resumen{ font-size:13px; color:var(--texto-2); margin:-4px 0 10px; }
+  .mp-bov-resumen b{ color:var(--texto); }
+  tr.mp-bov-zona td{ background:var(--azul-50); color:var(--azul-800); font-weight:600; font-size:12.5px; padding:7px 12px !important; }
+  tr.mp-bov-zona td span{ color:var(--texto-2); font-weight:500; margin-left:6px; }
+  .mp-primero{ font-size:11px; font-weight:600; color:var(--verde); background:var(--verde-bg); border-radius:999px; padding:1px 7px; margin-left:6px; white-space:nowrap; }
+  @media (max-width: 767px){
+    /* Manga en celular: ID + estado arriba, kilos a la derecha, datos en una línea */
+    #mp-bovinas-tbody tr:not(.mp-bov-zona){
+      display:grid !important; grid-template-columns:1fr auto; gap:2px 10px; align-items:center; padding:10px 12px !important;
+    }
+    #mp-bovinas-tbody tr:not(.mp-bov-zona) td{ display:block !important; padding:0 !important; border:none !important; margin:0 !important; font-size:13px; color:var(--texto-2); }
+    #mp-bovinas-tbody tr:not(.mp-bov-zona) td::before{ display:none; }
+    #mp-bovinas-tbody td[data-label="ID Bovina"]{ grid-column:1; grid-row:1; font-size:15px !important; color:var(--texto) !important; }
+    #mp-bovinas-tbody td[data-label="Peso actual"]{ grid-column:2; grid-row:1; text-align:right; font-size:17px !important; color:var(--texto) !important; }
+    #mp-bovinas-tbody td[data-label="Peso actual"]::after{ content:" kg"; font-size:12px; color:var(--texto-2); }
+    #mp-bovinas-tbody td[data-label="Estado"]{ grid-column:1; grid-row:2; }
+    #mp-bovinas-tbody td[data-label="Peso ingresado"]{ grid-column:2; grid-row:2; text-align:right; font-size:12px !important; }
+    #mp-bovinas-tbody td[data-label="Peso ingresado"]::before{ content:"de "; display:inline !important; font-size:12px; font-weight:400; text-transform:none; letter-spacing:0; color:var(--texto-3); }
+    #mp-bovinas-tbody tr:not(.mp-bov-zona) td[data-label="Zona"], #mp-bovinas-tbody tr:not(.mp-bov-zona) td[data-label="Días en almacén"],
+    #mp-bovinas-tbody tr:not(.mp-bov-zona) td[data-label="Proveedor"], #mp-bovinas-tbody tr:not(.mp-bov-zona) td[data-label="Fecha"],
+    #mp-bovinas-tbody tr:not(.mp-bov-zona) td[data-label="Almacenero"], #mp-bovinas-tbody tr:not(.mp-bov-zona) td[data-label="Guía / origen"]{ display:none !important; }
+    #mp-bovinas-tbody tr:not(.mp-bov-zona) td.mp-meta{ display:block !important; grid-column:1; grid-row:3; font-size:12px !important; }
+    #mp-bovinas-tbody tr:not(.mp-bov-zona) td.mp-acc{ grid-column:2; grid-row:3; text-align:right; }
+    #mp-bovinas-tbody tr:not(.mp-bov-zona) td.mp-acc:empty{ display:none !important; }
+    tr.mp-bov-zona{ display:block !important; border:none !important; box-shadow:none !important; background:transparent !important; padding:6px 2px 2px !important; margin:4px 0 6px !important; }
+    tr.mp-bov-zona td{ display:block !important; background:transparent; padding:0 !important; }
+    tr.mp-bov-zona td::before{ display:none; }
+  }
   .mp-vacio{ text-align:center; color:var(--texto-2); padding:28px 12px !important; }
   /* Tablet vertical: sin las columnas de kg ingresados/consumidos (están en el detalle) */
   @media (min-width: 768px) and (max-width: 1023px){
@@ -305,7 +339,15 @@
     <div id="mp-resumen-stock-kilos" style="font-size:24px; font-weight:bold;">0</div>
   </div>
 
-    <div style="font-weight:bold; margin:6px 0;">Ingresos (<span id="mp-ingresos-count">0</span> mangas)</div>
+    <div style="font-weight:bold; margin:6px 0;">Mangas de este material (<span id="mp-ingresos-count">0</span> ingresadas)</div>
+  <!-- Filtro: por defecto solo las que se pueden usar, juntas y agrupadas por zona -->
+  <div class="chips" id="mp-bov-filtros" role="group" aria-label="Filtrar mangas">
+    <button type="button" class="chip on" data-filtro="disponibles">Disponibles<b id="mp-bov-n-disp"></b></button>
+    <button type="button" class="chip" data-filtro="enuso">Con operario<b id="mp-bov-n-uso"></b></button>
+    <button type="button" class="chip" data-filtro="agotadas">Agotadas<b id="mp-bov-n-agot"></b></button>
+    <button type="button" class="chip" data-filtro="todas">Todas<b id="mp-bov-n-todas"></b></button>
+  </div>
+  <div class="mp-bov-resumen" id="mp-bov-resumen"></div>
   <div id="mp-zona-bar" style="display:none; margin:6px 0 10px; gap:8px; flex-wrap:wrap; align-items:center;">
     <span id="mp-sin-zona-txt" style="font-size:13px; color:#c62828; font-weight:bold;"></span>
     <select class="input-classic" id="mp-asig-zona" style="width:auto;">
@@ -313,9 +355,9 @@
     </select>
     <button type="button" class="btn-classic btn-primary" id="mp-asig-zona-btn">📍 Asignar zona a las que no tienen</button>
   </div>
-  <div class="table-scroll" style="max-height:220px;">
+  <div class="table-scroll" style="max-height:440px;">
     <table class="data-grid">
-        <thead><tr><th>Fecha</th><th title="Días desde que ingresó la manga">Días en almacén</th><th>ID Bovina</th><th>Almacenero</th><th>Proveedor</th><th>Guía / origen</th><th>Zona</th><th>Peso ingresado</th><th>Peso actual</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <thead id="mp-bovinas-thead"><tr><th>Fecha</th><th title="Días desde que ingresó la manga">Días</th><th>ID Bovina</th><th>Almacenero</th><th>Proveedor</th><th>Guía</th><th>Zona</th><th title="Peso con el que ingresó (kg)">Ingresó</th><th title="Peso que queda (kg)">Queda</th><th>Estado</th><th></th></tr></thead>
       <tbody id="mp-bovinas-tbody"></tbody>
     </table>
   </div>
